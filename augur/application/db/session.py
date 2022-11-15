@@ -15,7 +15,7 @@ from psycopg2.errors import DeadlockDetected
 from augur.application.db.engine import create_database_engine
 from augur.application.config import AugurConfig
 from augur.application.db.models import Platform
-from augur.tasks.util.worker_util import remove_duplicate_dicts
+from augur.tasks.util.worker_util import remove_duplicate_dicts, remove_duplicate_naturals
 
 
 def remove_null_characters_from_string(string):
@@ -70,11 +70,11 @@ class DatabaseSession(s.orm.Session):
         self.close()
     
     def execute_sql(self, sql_text):
-
-        with self.engine.connect():
-            connection = self.engine.connect()
-
-            return connection.execute(sql_text)
+        return_data = {}
+        with self.engine.connect() as connection:
+            return_data = connection.execute(sql_text)
+        
+        return return_data
 
     def fetchall_data_from_sql_text(self,sql_text):
         result = self.execute_sql(sql_text).fetchall()
@@ -104,6 +104,7 @@ class DatabaseSession(s.orm.Session):
         # remove any duplicate data 
         # this only counts something as a duplicate if every field is the same
         data = remove_duplicate_dicts(data)
+        data = remove_duplicate_naturals(data,natural_keys)
 
         # remove null data from string fields
         if string_fields and isinstance(string_fields, list):
