@@ -88,10 +88,10 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger):
             return
 
 
-        labels, assignees, reviews, metadata = map_other_pr_data_to_pr(pr_return_data, pr_mapping_data, logger)
+        labels, assignees, reviewers, metadata = map_other_pr_data_to_pr(pr_return_data, pr_mapping_data, logger)
             
 
-        logger.info(f"{task_name}: Inserting other pr data of lengths: Labels: {len(pr_label_dicts)} - Assignees: {len(pr_assignee_dicts)} - Reviewers: {len(pr_reviewer_dicts)} - Metadata: {len(pr_metadata_dicts)}")
+        logger.info(f"{task_name}: Inserting other pr data of lengths: Labels: {len(labels)} - Assignees: {len(assignees)} - Reviewers: {len(reviewers)} - Metadata: {len(metadata)}")
 
         insert_pr_labels(labels, logger)
         insert_pr_assignees(assignees, logger)
