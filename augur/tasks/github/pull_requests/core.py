@@ -162,6 +162,8 @@ def insert_prs(pr_dicts: List[dict], session: GithubTaskSession, task_name: str)
             So we can determine what labels, assigness, and other data belong to each pr
     """
 
+    # pr_urls are gloablly unique across github so we are using it to determine whether a pull_request we collected is already in the table
+    # specified in pr_return_columns is the columns of data we want returned. This data will return in this form; {"pr_url": url, "pull_request_id": id}
     session.logger.info(f"{task_name}: Inserting prs of length: {len(pr_dicts)}")
     pr_natural_keys = ["pr_url"]
     pr_return_columns = ["pull_request_id", "pr_url"]

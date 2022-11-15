@@ -2,7 +2,7 @@ import time
 import logging
 
 
-from augur.tasks.github.pull_requests.core import extract_data_from_pr_list
+from augur.tasks.github.pull_requests.core import *
 from augur.tasks.init.celery_app import celery_app as celery, engine
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
@@ -80,80 +80,23 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger):
 
     with GithubTaskSession(logger, engine) as session:
 
-        # remove duplicate contributors before inserting
-        contributors = remove_duplicate_dicts(contributors)
+        insert_pr_contributors(contributors, session, task_name)
 
-        # insert contributors from these prs
-        logger.info(f"{task_name}: Inserting {len(contributors)} contributors")
-        session.insert_data(contributors, Contributor, ["cntrb_id"])
-
-
-        # insert the prs into the pull_requests table. 
-        # pr_urls are gloablly unique across github so we are using it to determine whether a pull_request we collected is already in the table
-        # specified in pr_return_columns is the columns of data we want returned. This data will return in this form; {"pr_url": url, "pull_request_id": id}
-        logger.info(f"{task_name}: Inserting prs of length: {len(pr_dicts)}")
-        pr_natural_keys = ["repo_id", "pr_src_id"]
-        pr_return_columns = ["pull_request_id", "pr_url"]
-        pr_string_fields = ["pr_src_title", "pr_body"]
-        pr_return_data = session.insert_data(pr_dicts, PullRequest, pr_natural_keys, 
-                                return_columns=pr_return_columns, string_fields=pr_string_fields)
+        pr_return_data = insert_prs(pr_dicts, session, task_name)
 
         if pr_return_data is None:
             return
 
 
-        # loop through the pr_return_data (which is a list of pr_urls 
-        # and pull_request_id in dicts) so we can find the labels, 
-        # assignees, reviewers, and assignees that match the pr
-        pr_label_dicts = []
-        pr_assignee_dicts = []
-        pr_reviewer_dicts = []
-        pr_metadata_dicts = []
-        for data in pr_return_data:
-
-            pr_url = data["pr_url"]
-            pull_request_id = data["pull_request_id"]
-
-            try:
-                other_pr_data = pr_mapping_data[pr_url]
-            except KeyError as e:
-                logger.info(f"Cold not find other pr data. This should never happen. Error: {e}")
-
-
-            # add the pull_request_id to the labels, assignees, reviewers, or metadata then add them to a list of dicts that will be inserted soon
-            dict_key = "pull_request_id"
-            pr_label_dicts += add_key_value_pair_to_dicts(other_pr_data["labels"], dict_key, pull_request_id)
-            pr_assignee_dicts += add_key_value_pair_to_dicts(other_pr_data["assignees"], dict_key, pull_request_id)
-            pr_reviewer_dicts += add_key_value_pair_to_dicts(other_pr_data["reviewers"], dict_key, pull_request_id)
-            pr_metadata_dicts += add_key_value_pair_to_dicts(other_pr_data["metadata"], dict_key, pull_request_id)
+        labels, assignees, reviews, metadata = map_other_pr_data_to_pr(pr_return_data, pr_mapping_data, logger)
             
 
         logger.info(f"{task_name}: Inserting other pr data of lengths: Labels: {len(pr_label_dicts)} - Assignees: {len(pr_assignee_dicts)} - Reviewers: {len(pr_reviewer_dicts)} - Metadata: {len(pr_metadata_dicts)}")
 
-        # inserting pr labels
-        # we are using pr_src_id and pull_request_id to determine if the label is already in the database.
-        pr_label_natural_keys = ['pr_src_id', 'pull_request_id']
-        pr_label_string_fields = ["pr_src_description"]
-        session.insert_data(pr_label_dicts, PullRequestLabel, pr_label_natural_keys, string_fields=pr_label_string_fields)
-    
-        # inserting pr assignees
-        # we are using pr_assignee_src_id and pull_request_id to determine if the label is already in the database.
-        pr_assignee_natural_keys = ['pr_assignee_src_id', 'pull_request_id']
-        session.insert_data(pr_assignee_dicts, PullRequestAssignee, pr_assignee_natural_keys)
-
-    
-        # inserting pr requested reviewers
-        # we are using pr_src_id and pull_request_id to determine if the label is already in the database.
-        pr_reviewer_natural_keys = ["pull_request_id", "pr_reviewer_src_id"]
-        session.insert_data(pr_reviewer_dicts, PullRequestReviewer, pr_reviewer_natural_keys)
-        
-        # inserting pr metadata
-        # we are using pull_request_id, pr_head_or_base, and pr_sha to determine if the label is already in the database.
-        pr_metadata_natural_keys = ['pull_request_id', 'pr_head_or_base', 'pr_sha']
-        pr_metadata_string_fields = ["pr_src_meta_label"]
-        session.insert_data(pr_metadata_dicts, PullRequestMeta,
-                            pr_metadata_natural_keys, string_fields=pr_metadata_string_fields)
-
+        insert_pr_labels(labels, logger)
+        insert_pr_assignees(assignees, logger)
+        insert_pr_reviewers(reviewers, logger)
+        insert_pr_metadata(metadata, logger)
 
 
 
