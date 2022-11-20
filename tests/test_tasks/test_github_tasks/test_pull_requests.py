@@ -10,6 +10,8 @@ from augur.application.db.models import Config
 from augur.tasks.util.AugurUUID import GithubUUID
 from augur.application.db.data_parse import extract_needed_contributor_data
 from augur.application.db.engine import create_database_engine
+from tests.test_tasks.test_github_tasks.random_pr_data_generator import generate_random_pr_data
+
 
 logger = logging.getLogger(__name__)
 not_provided_cntrb_id = '00000000-0000-0000-0000-000000000000'
@@ -27,68 +29,17 @@ def github_api_key_headers():
         yield headers
 
 
-@pytest.mark.parametrize("pr_number", [1, 2, 26])
-def test_extract_data_from_pr(github_api_key_headers, pr_number):
+def test_extract_data_from_pr():
     
-    url = f"https://api.github.com/repos/operate-first/blueprint/pulls/{str(pr_number)}" 
+    repo_id = -1
+    tool_source = "Pr Task"
+    tool_version = "2.0"
+    data_source = "Github API"
 
-    with httpx.Client() as client:
+    for _ in range(100):
+        pr, label_count, assignee_count, reviewer_count, _, contributor_count = generate_random_pr_data()
 
-        data = client.request(method="GET", url=url, headers=github_api_key_headers, timeout=180).json()
-
-        metadata_keys = ["head", "base"]
-
-        meatadata_len = 0
-        contributors_len = 0
-
-        try:
-            data["user"]
-            contributors_len +=1
-        except KeyError:
-            pass
-
-        for key in metadata_keys:
-
-            try:
-                metadata = data[key]
-                meatadata_len += 1
-            except KeyError:
-                continue
-
-            # if login exists on metadata then add count to contributors
-            try:
-                data[key]["user"]["login"]
-                contributors_len += 1
-            except KeyError:
-                pass
-
-        # count one contributor for every reviewer and assignee
-        for value in data["requested_reviewers"] + data["assignees"]:
-
-            try:
-                value["login"]
-                contributors_len += 1
-            except KeyError:
-                continue
-
-
-        labels_len = len(data["labels"])
-        requested_reviewers_len = len(data["requested_reviewers"])
-        assignees_len = len(data["assignees"])        
-
-        # print(f"Pr number: {pr_number}")
-        # print(f"Metadata: {meatadata_len}")
-        # print(f"Labels: {labels_len}")
-        # print(f"Reviewers: {requested_reviewers_len}")
-        # print(f"Assignees: {assignees_len}")
-        # print(f"Contributors: {contributors_len}")
-
-        repo_id = -1
-        tool_source = "Pr Task"
-        tool_version = "2.0"
-        data_source = "Github API"
-
-        pr, labels, assignees, reviewers, metadata, contributors = extract_data_from_pr(data, repo_id, tool_source, tool_version, data_source)
+        pr, labels, assignees, reviewers, metadata, contributors = extract_data_from_pr(pr, repo_id, tool_source, tool_version, data_source)
 
         assert pr is not None
         assert labels is not None
@@ -98,75 +49,45 @@ def test_extract_data_from_pr(github_api_key_headers, pr_number):
         assert contributors is not None
 
         assert type(pr) == dict
-        assert len(labels) == labels_len
-        assert len(assignees) == assignees_len
-        assert len(reviewers) == requested_reviewers_len
-        assert len(metadata) == meatadata_len
-        assert len(contributors) == contributors_len
+        assert len(labels) == label_count
+        assert len(assignees) == assignee_count
+        assert len(reviewers) == reviewer_count
+        assert len(metadata) == 2
+        assert len(contributors) == contributor_count
         
 
-def test_extract_data_from_pr_list(github_api_key_headers):
-
-    base_url = f"https://api.github.com/repos/operate-first/blueprint/pulls/" 
-
-    contributor_count = 0
-    metadata_count = 0
-    reviewer_count = 0
-    assignee_count = 0
-    label_count = 0
-
-    raw_pr_data = []
-
-    numbers = [1, 2, 3, 4, 5, 6, 7, 26]
-    for pr_number in numbers:
-
-        url = base_url + str(pr_number)
-
-        with httpx.Client() as client:
-
-            data = client.request(method="GET", url=url, headers=github_api_key_headers, timeout=180).json()
-
-            raw_pr_data.append(data)
-
-            metadata_keys = ["head", "base"]
-
-            try:
-                data["user"]
-                contributor_count +=1
-            except KeyError:
-                pass
-
-            for key in metadata_keys:
-
-                # if "head" or "base" exist add one ot metadata_len
-                if data[key]:
-
-                    metadata_count += 1
-                
-                    # if login exists on metadata then add count to contributors
-                    try:
-                        data[key]["user"]["login"]
-                        contributor_count += 1
-                    except KeyError:
-                        pass
-
-            # count one contributor for every reviewer and assignee
-            for value in data["requested_reviewers"] + data["assignees"]:
-
-                try:
-                    value["login"]
-                    contributor_count += 1
-                except KeyError:
-                    continue
-
-            label_count += len(data["labels"])
-            reviewer_count += len(data["requested_reviewers"])
-            assignee_count += len(data["assignees"])
+def test_extract_data_from_pr_list():
 
     repo_id = -1
     tool_source = "Pr Task"
     tool_version = "2.0"
     data_source = "Github API"
+
+    pr_count = 30
+    pr_numbers = []
+    total_contributor_count = 0
+    total_metadata_count = 0
+    total_assignee_count = 0
+    total_label_count = 0
+    total_reviewer_count = 0
+
+    owner_name = "chaoss"
+    repo_name = "augur"
+
+    raw_pr_data = []
+    for _ in range(pr_count):
+
+        pr, label_count, assignee_count, reviewer_count, _, contributor_count = generate_random_pr_data(owner_name, repo_name)
+
+        raw_pr_data.append(pr)
+        pr_numbers.append(pr["number"])
+
+        total_contributor_count += contributor_count
+        total_metadata_count += 2
+        total_assignee_count += assignee_count
+        total_label_count += label_count
+        total_reviewer_count += reviewer_count
+
 
     pr_dicts, pr_mapping_data, pr_numbers, contributors = extract_data_from_pr_list(raw_pr_data, repo_id, tool_source, tool_version, data_source)
 
@@ -175,37 +96,33 @@ def test_extract_data_from_pr_list(github_api_key_headers):
     assert pr_numbers is not None
     assert contributors is not None 
 
-    assert len(pr_dicts) == len(numbers)
-    assert len(pr_mapping_data) == len(numbers)
-    assert len(pr_numbers) == len(numbers)
-    assert contributor_count == len(contributors)
+    assert len(pr_dicts) == pr_count
+    assert len(pr_mapping_data) == pr_count
+    assert len(pr_numbers) == pr_count
+    assert total_contributor_count == len(contributors)
 
-    
 
-    urls = [base_url + str(pr_number) for pr_number in numbers]
+    base_url = f"https://api.github.com/repos/{owner_name}/{repo_name}/pulls/" 
 
     returned_metadata_count = 0
     returned_reviewer_count = 0
     returned_assignee_count = 0
     returned_label_count = 0 
 
-    for pr_number in numbers:
+    for pr_number in pr_numbers:
 
         url = base_url + str(pr_number)
-
         other_pr_data = pr_mapping_data[url]
-
 
         returned_metadata_count += len(other_pr_data["metadata"])
         returned_reviewer_count += len(other_pr_data["reviewers"])
         returned_assignee_count += len(other_pr_data["assignees"])
         returned_label_count += len(other_pr_data["labels"])      
 
-    assert metadata_count == returned_metadata_count
-    assert reviewer_count == returned_reviewer_count
-    assert assignee_count == returned_assignee_count
-    assert label_count == returned_label_count
-        
+    assert total_metadata_count == returned_metadata_count
+    assert total_reviewer_count == returned_reviewer_count
+    assert total_assignee_count == returned_assignee_count
+    assert total_label_count == returned_label_count
 
 
 
