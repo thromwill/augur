@@ -1,6 +1,7 @@
 # coding: utf-8
 from sqlalchemy import BigInteger, SmallInteger, Column, Index, Integer, String, Table, text, UniqueConstraint, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import TIMESTAMP
+from flask_login import UserMixin
 
 from augur.application.db.models.base import Base
 
@@ -168,7 +169,7 @@ class Config(Base):
     )
 
 # add admit column to database
-class User(Base):
+class User(UserMixin, Base):
     user_id = Column(Integer, primary_key=True)
     login_name = Column(String, nullable=False)
     login_hashword = Column(String, nullable=False)
@@ -181,7 +182,7 @@ class User(Base):
     tool_version = Column(String)
     data_source = Column(String)
     data_collection_date = Column(TIMESTAMP(precision=0), server_default=text("CURRENT_TIMESTAMP"))
-    
+
     __tablename__ = 'users'
     __table_args__ = (
         UniqueConstraint('email', name='user-unique-email'),

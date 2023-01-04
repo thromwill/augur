@@ -42,7 +42,7 @@ setup(
         "Jinja2==3.0.2", # 3.1.2
         "Flask==2.0.2", # 2.2.2
         "Flask-Cors==3.0.10",
-        "Flask-Login==0.5.0",
+        "Flask-Login==0.6.2",
         "Flask-WTF==1.0.0",
         "pandas==1.3.5", # 1.4.3
         "numpy==1.21", # 1.23.2
@@ -74,7 +74,7 @@ setup(
         "XlsxWriter==1.3.7", # 3.0.3
         "celery==5.2.7", # 5.2.7
         "httpx==0.23.0", # 0.23.0
-        "eventlet==0.33.1", 
+        "eventlet==0.33.1",
         "flower==1.2.0",
         "tornado==6.1", # added because it sometimes errors when tornado is not 6.1 even though nothing we install depends on it
         "pylint==2.15.5"

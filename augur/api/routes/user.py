@@ -7,7 +7,8 @@ import logging
 import requests
 import json
 import os
-from flask import request, Response, jsonify
+from flask import request, Response, jsonify, render_template, url_for
+from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.sql import text
 from sqlalchemy.orm import sessionmaker
@@ -40,15 +41,21 @@ def create_routes(server):
     def unsupported_method(error):
         return jsonify({"status": "Unsupported method"}), 405
 
-    @server.app.route(f"/{AUGUR_API_VERSION}/user/validate", methods=['POST'])
-    def validate_user():
+    @server.app.route(f"/login", methods=['GET'])
+    def login():
+        return render_template("login.html")
+
+    @server.app.route(f"/login", methods=['POST'])
+    def post_login():
         if not development and not request.is_secure:
             return generate_upgrade_request()
 
         session = Session()
-        username = request.args.get("username")
-        password = request.args.get("password")
-        if username is None or password is None:
+
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if not (username and password):
             # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
             return jsonify({"status": "Missing argument"}), 400
 
@@ -58,8 +65,9 @@ def create_routes(server):
             return jsonify({"status": "Invalid username"})
         if checkPassword == False:
             return jsonify({"status": "Invalid password"})
-        return jsonify({"status": "Validated"})
-    
+        login_user(user)
+        return redirect(url_for("me"))
+
     @server.app.route(f"/{AUGUR_API_VERSION}/user/query", methods=['POST'])
     def query_user():
         if not development and not request.is_secure:
@@ -71,24 +79,33 @@ def create_routes(server):
             # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
             return jsonify({"status": "Missing argument"}), 400
         user = session.query(User).filter(User.login_name == username).first()
-        
+
         if user is None:
             return jsonify({"status": "Invalid username"})
 
         return jsonify({"status": True})
 
-    @server.app.route(f"/{AUGUR_API_VERSION}/user/create", methods=['POST'])
-    def create_user():
+    @server.app.route(f"/me", methods=['GET'])
+    @login_required
+    def me():
+       return jsonify({"user": current_user.username})
+
+    @server.app.route(f"/signup", methods=['GET'])
+    def signup():
+       return render_template("signup.html")
+
+    @server.app.route(f"/signup", methods=['POST'])
+    def post_signup():
         if not development and not request.is_secure:
             return generate_upgrade_request()
 
         session = Session()
-        username = request.args.get("username")
-        password = request.args.get("password")
-        email = request.args.get("email")
-        first_name = request.args.get("first_name")
-        last_name = request.args.get("last_name")
-        admin = request.args.get("create_admin") or False
+        username = request.form.get("username")
+        password = request.form.get("password")
+        email = request.form.get("email")
+        first_name = request.form.get("first_name")
+        last_name = request.form.get("last_name")
+        admin = request.form.get("create_admin") or False
 
         if username is None or password is None or email is None:
             # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
@@ -104,9 +121,9 @@ def create_routes(server):
             session.add(user)
             session.commit()
             return jsonify({"status": "User created"})
-        except AssertionError as exception_message: 
+        except AssertionError as exception_message:
             return jsonify(msg='Error: {}. '.format(exception_message)), 400
-    
+
     @server.app.route(f"/{AUGUR_API_VERSION}/user/remove", methods=['POST', 'DELETE'])
     def delete_user():
         if not development and not request.is_secure:
@@ -118,7 +135,7 @@ def create_routes(server):
             return jsonify({"status": "Missing argument"}), 400
 
         user = session.query(User).filter(User.login_name == username).first()
-       
+
         if user is None:
             return jsonify({"status": "User does not exist"})
 
@@ -151,7 +168,7 @@ def create_routes(server):
 
         checkPassword = check_password_hash(user.login_hashword, password)
         if checkPassword == False:
-            return jsonify({"status": "Invalid password"}) 
+            return jsonify({"status": "Invalid password"})
 
         if email is not None:
             existing_user = session.query(User).filter(User.email == email).one()
@@ -186,13 +203,13 @@ def create_routes(server):
         username = request.args.get("username")
 
         with DatabaseSession(logger) as session:
-    
+
             if username is None:
                 return jsonify({"status": "Missing argument"}), 400
             user = session.query(User).filter(User.login_name == username).first()
             if user is None:
                 return jsonify({"status": "User does not exist"})
-            
+
             repo_load_controller = RepoLoadController(gh_session=session)
 
             repo_ids = repo_load_controller.get_user_repo_ids(user.user_id)
@@ -247,4 +264,4 @@ def create_routes(server):
             return jsonify(result)
 
 
-        
+

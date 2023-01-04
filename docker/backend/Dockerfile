@@ -31,10 +31,10 @@ COPY ./scripts/ scripts/
 RUN python3 -m venv /opt/venv
 
 RUN set -x \
-    && /opt/venv/bin/pip install .
+    && /opt/venv/bin/pip install -Ue .
 
 RUN ./scripts/docker/install-go.sh
-# RUN ./scripts/install/workers.sh 
+# RUN ./scripts/install/workers.sh
 
 RUN mkdir -p repos/ logs/ /augur/facade/
 

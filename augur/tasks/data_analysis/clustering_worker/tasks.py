@@ -75,17 +75,17 @@ def clustering_model(repo_git: str) -> None:
                 i.issue_id thread_id,
                 M.msg_text,
                 i.issue_title thread_title,
-                M.msg_id 
+                M.msg_id
             FROM
                 augur_data.repo r,
                 augur_data.issues i,
                 augur_data.message M,
-                augur_data.issue_message_ref imr 
+                augur_data.issue_message_ref imr
             WHERE
-                r.repo_id = i.repo_id 
-                AND imr.issue_id = i.issue_id 
-                AND imr.msg_id = M.msg_id 
-                AND r.repo_id = :repo_id 
+                r.repo_id = i.repo_id
+                AND imr.issue_id = i.issue_id
+                AND imr.msg_id = M.msg_id
+                AND r.repo_id = :repo_id
             UNION
             SELECT
                 r.repo_group_id,
@@ -95,16 +95,16 @@ def clustering_model(repo_git: str) -> None:
                 pr.pull_request_id thread_id,
                 M.msg_text,
                 pr.pr_src_title thread_title,
-                M.msg_id 
+                M.msg_id
             FROM
                 augur_data.repo r,
                 augur_data.pull_requests pr,
                 augur_data.message M,
-                augur_data.pull_request_message_ref prmr 
+                augur_data.pull_request_message_ref prmr
             WHERE
-                r.repo_id = pr.repo_id 
-                AND prmr.pull_request_id = pr.pull_request_id 
-                AND prmr.msg_id = M.msg_id 
+                r.repo_id = pr.repo_id
+                AND prmr.pull_request_id = pr.pull_request_id
+                AND prmr.msg_id = M.msg_id
                 AND r.repo_id = :repo_id
             """
     )

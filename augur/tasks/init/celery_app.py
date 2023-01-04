@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict
 import os
 from celery import Celery
-from celery import current_app 
+from celery import current_app
 from celery.signals import after_setup_logger
 from sqlalchemy import create_engine, event
 
@@ -16,8 +16,7 @@ from augur.tasks.init import get_redis_conn_values
 
 logger = logging.getLogger(__name__)
 
-start_tasks = ['augur.tasks.start_tasks',
-                'augur.tasks.data_analysis']
+start_tasks = ['augur.tasks.start_tasks']
 
 github_tasks = ['augur.tasks.github.contributors.tasks',
                 'augur.tasks.github.issues.tasks',
@@ -33,7 +32,8 @@ github_tasks = ['augur.tasks.github.contributors.tasks',
 
 git_tasks = ['augur.tasks.git.facade_tasks']
 
-data_analysis_tasks = ['augur.tasks.data_analysis.message_insights.tasks',
+data_analysis_tasks = ['augur.tasks.data_analysis',
+                       'augur.tasks.data_analysis.message_insights.tasks',
                        'augur.tasks.data_analysis.clustering_worker.tasks',
                        'augur.tasks.data_analysis.discourse_analysis.tasks',
                        'augur.tasks.data_analysis.pull_request_analysis_worker.tasks']
@@ -89,14 +89,14 @@ def split_tasks_into_groups(augur_tasks: List[str]) -> Dict[str, List[str]]:
     """
     grouped_tasks = {}
 
-    for task in augur_tasks: 
+    for task in augur_tasks:
         task_divided = task.split(".")
 
         try:
             grouped_tasks[task_divided[-2]].append(task_divided[-1])
         except KeyError:
             grouped_tasks[task_divided[-2]] = [task_divided[-1]]
-    
+
     return grouped_tasks
 
 
@@ -129,7 +129,7 @@ def setup_loggers(*args,**kwargs):
     all_celery_tasks = list(current_app.tasks.keys())
 
     augur_tasks = [task for task in all_celery_tasks if 'celery.' not in task]
-    
+
     TaskLogConfig(split_tasks_into_groups(augur_tasks))
 
 
