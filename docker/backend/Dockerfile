@@ -22,21 +22,23 @@ EXPOSE 5000
 WORKDIR /augur
 COPY ./README.md .
 COPY ./alembic.ini .
-COPY ./augur/ augur/
 COPY ./metadata.py .
 COPY ./setup.py .
 COPY ./scripts/ scripts/
 
 #COPY ./docker/backend/docker.config.json .
-RUN python3 -m venv /opt/venv
-
-RUN set -x \
-    && /opt/venv/bin/pip install -Ue .
+RUN set -x && \
+    mkdir ./augur &&\
+    python3 -m venv /opt/venv &&\
+    /opt/venv/bin/pip install -Ue .
 
 RUN ./scripts/docker/install-go.sh
 # RUN ./scripts/install/workers.sh
 
 RUN mkdir -p repos/ logs/ /augur/facade/
+
+COPY ./augur ./augur
+RUN /opt/venv/bin/pip install -Ue .
 
 COPY ./docker/backend/entrypoint.sh /
 RUN chmod +x /entrypoint.sh
