@@ -42,4 +42,5 @@ RUN /opt/venv/bin/pip install -Ue .
 
 COPY ./docker/backend/entrypoint.sh /
 RUN chmod +x /entrypoint.sh
-ENTRYPOINT /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["augur", "backend", "start"]

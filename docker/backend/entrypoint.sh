@@ -16,12 +16,10 @@ fi
 
 
 if [[ "$AUGUR_DB_SCHEMA_BUILD" == "1" ]]; then
-    echo "why"
     augur db create-schema
 fi
 
 target="docker"
-echo $target
 export AUGUR_FACADE_REPO_DIRECTORY=/augur/facade/
 export AUGUR_DOCKER_DEPLOY="1"
 
@@ -43,4 +41,4 @@ if [[ -f /repos.csv ]]; then
    augur db add-repos /repos.csv
 fi
 
-exec augur backend start
+exec "$@"
