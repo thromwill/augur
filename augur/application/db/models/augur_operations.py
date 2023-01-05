@@ -191,6 +191,9 @@ class User(UserMixin, Base):
         {"schema": "augur_operations"}
     )
 
+    def get_id(self) -> str:
+        return str(self.user_id)
+
 
 
 class UserRepo(Base):

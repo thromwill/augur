@@ -7,8 +7,8 @@ import logging
 import requests
 import json
 import os
-from flask import request, Response, jsonify, render_template, url_for
-from flask_login import login_required, current_user
+from flask import request, Response, jsonify, render_template, url_for, redirect
+from flask_login import login_required, current_user, login_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.sql import text
 from sqlalchemy.orm import sessionmaker
@@ -88,7 +88,7 @@ def create_routes(server):
     @server.app.route(f"/me", methods=['GET'])
     @login_required
     def me():
-       return jsonify({"user": current_user.username})
+       return jsonify({"user": current_user.login_name})
 
     @server.app.route(f"/signup", methods=['GET'])
     def signup():

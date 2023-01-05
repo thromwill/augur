@@ -39,7 +39,6 @@ setup(
         "Beaker==1.11.0", # 1.11.0
         "SQLAlchemy==1.3.23", # 1.4.40
         "itsdangerous==2.0.1", # 2.1.2
-        "Jinja2==3.0.2", # 3.1.2
         "Flask==2.0.2", # 2.2.2
         "Flask-Cors==3.0.10",
         "Flask-Login==0.6.2",
@@ -79,7 +78,7 @@ setup(
         "tornado==6.1", # added because it sometimes errors when tornado is not 6.1 even though nothing we install depends on it
         "pylint==2.15.5",
         'Werkzeug~=2.0.0',
-        'jinja2~=3.0.3'
+        'Jinja2~=3.0.3'
     ],
     extras_require={
         "dev": [

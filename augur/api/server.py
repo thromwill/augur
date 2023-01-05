@@ -80,7 +80,7 @@ class Server():
         @self.login_manager.user_loader
         def load_user(user_id):
             # since the user_id is just the primary key of our user table, use it in the query for the user
-            return User.query.get(int(user_id))
+            return self.session.query(User).filter(User.user_id == int(user_id)).one()
 
 
         self.app.url_map.strict_slashes = False
