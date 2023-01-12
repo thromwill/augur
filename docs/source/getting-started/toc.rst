@@ -22,7 +22,7 @@ The next section will start with a database setup, and then you can continue wit
 Happy hacking!
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    prerequisites/database 
    prerequisites/system-level
