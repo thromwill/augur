@@ -9,7 +9,6 @@ from augur.application.db.session import DatabaseSession
 from augur.application.db.models import Config 
 from augur.tasks.util.AugurUUID import GithubUUID
 from augur.application.db.data_parse import extract_needed_contributor_data
-from augur.application.db.engine import create_database_engine
 from tests.test_tasks.test_github_tasks.random_pr_data_generator import generate_random_pr_data
 
 

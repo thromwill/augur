@@ -1,41 +1,54 @@
 import time
 import logging
 
+import traceback
 
-from augur.tasks.init.celery_app import celery_app as celery, engine
+from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
 from augur.tasks.github.util.github_task_session import GithubTaskSession
+from augur.application.db.session import DatabaseSession
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.tasks.github.util.util import get_owner_repo
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
+from augur.application.db.util import execute_session_query
+
 
 
 platform_id = 1
 
 
 @celery.task
-def collect_github_messages(repo_git: str) -> None:
+def collect_github_messages(repo_git_identifiers: [str]) -> None:
+
+    from augur.tasks.init.celery_app import engine
 
     logger = logging.getLogger(collect_github_messages.__name__)
+
+    with DatabaseSession(logger, engine) as session:
     
-    with GithubTaskSession(logger, engine) as session:
+        for repo_git in repo_git_identifiers:
+            try:
+                
+                repo_id = session.query(Repo).filter(
+                    Repo.repo_git == repo_git).one().repo_id
 
-        repo_id = session.query(Repo).filter(
-            Repo.repo_git == repo_git).one().repo_id
+                owner, repo = get_owner_repo(repo_git)
+                message_data = retrieve_all_pr_and_issue_messages(repo_git, logger)
 
-    owner, repo = get_owner_repo(repo_git)
-    message_data = retrieve_all_pr_and_issue_messages(repo_git, logger)
+                if message_data:
+                
+                    process_messages(message_data, f"{owner}/{repo}: Message task", repo_id, logger)
 
-    if message_data:
-
-        process_messages(message_data, f"{owner}/{repo}: Message task", repo_id, logger)
-
-    else:
-        logger.info(f"{owner}/{repo} has no messages")
+                else:
+                    logger.info(f"{owner}/{repo} has no messages")
+            except Exception as e:
+                logger.error(f"Could not collect github messages for {repo_git}\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
 
 
 def retrieve_all_pr_and_issue_messages(repo_git: str, logger) -> None:
+
+    from augur.tasks.init.celery_app import engine
 
     owner, repo = get_owner_repo(repo_git)
 
@@ -77,6 +90,8 @@ def retrieve_all_pr_and_issue_messages(repo_git: str, logger) -> None:
 
 def process_messages(messages, task_name, repo_id, logger):
 
+    from augur.tasks.init.celery_app import engine
+
     tool_source = "Pr comment task"
     tool_version = "2.0"
     data_source = "Github API"
@@ -92,7 +107,7 @@ def process_messages(messages, task_name, repo_id, logger):
     if len(messages) == 0:
         logger.info(f"{task_name}: No messages to process")
 
-    with GithubTaskSession(logger, engine) as session:
+    with DatabaseSession(logger, engine) as session:
 
         for message in messages:
 
@@ -106,7 +121,8 @@ def process_messages(messages, task_name, repo_id, logger):
             if is_issue_message(message["html_url"]):
 
                 try:
-                    related_issue = session.query(Issue).filter(Issue.issue_url == message["issue_url"]).one()
+                    query = session.query(Issue).filter(Issue.issue_url == message["issue_url"])
+                    related_issue = execute_session_query(query, 'one')
                     related_pr_of_issue_found = True
 
                 except s.orm.exc.NoResultFound:
@@ -131,7 +147,8 @@ def process_messages(messages, task_name, repo_id, logger):
             else:
 
                 try:
-                    related_pr = session.query(PullRequest).filter(PullRequest.pr_issue_url == message["issue_url"]).one()
+                    query = session.query(PullRequest).filter(PullRequest.pr_issue_url == message["issue_url"])
+                    related_pr = execute_session_query(query, 'one')
                     related_pr_of_issue_found = True
 
                 except s.orm.exc.NoResultFound:

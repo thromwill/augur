@@ -21,7 +21,7 @@ from augur.application.cli import test_connection, test_db_connection
 
 from augur.application.db.session import DatabaseSession
 from augur.application.logs import AugurLogger
-from augur.application.db.engine import create_database_engine
+from augur.application.db.engine import DatabaseEngine
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,13 @@ def cli():
 @test_connection
 @test_db_connection
 def add_repos(filename):
-    """Add repositories to Augur's database."""   
+    """Add repositories to Augur's database. 
+
+    The .csv file format should be repo_url,group_id
+
+    NOTE: The Group ID must already exist in the REPO_Groups Table.
+
+    If you want to add an entire GitHub organization, refer to the command: augur db add-github-org"""   
     from augur.tasks.github.util.github_task_session import GithubTaskSession
     from augur.util.repo_load_controller import RepoLoadController
 
@@ -69,8 +75,7 @@ def get_repo_groups():
     List all repo groups and their associated IDs
     """
 
-    engine = create_database_engine()
-    with engine.connect() as connection:
+    with DatabaseEngine as engine, engine.connect() as connection:
         df = pd.read_sql(
             s.sql.text(
                 "SELECT repo_group_id, rg_name, rg_description FROM augur_data.repo_groups"
@@ -78,6 +83,7 @@ def get_repo_groups():
             connection,
         )
     print(df)
+    engine.dispose()
 
     return df
 
@@ -90,8 +96,7 @@ def add_repo_groups(filename):
     """
     Create new repo groups in Augur's database
     """
-    engine = create_database_engine()
-    with engine.connect() as connection:
+    with DatabaseEngine as engine, engine.connect() as connection:
 
         df = pd.read_sql(
             s.sql.text("SELECT repo_group_id FROM augur_data.repo_groups"),
@@ -127,6 +132,8 @@ def add_repo_groups(filename):
                         f"Repo group with ID {row[1]} for repo group {row[1]} already exists, skipping..."
                     )
 
+    engine.dispose()
+
 
 @cli.command("add-github-org")
 @click.argument("organization_name")
@@ -154,10 +161,13 @@ def get_db_version():
         """
     )
 
-    engine = create_database_engine()
-    with engine.connect() as connection:
+    with DatabaseEngine as engine, engine.connect() as connection:
 
-        return int(connection.execute(db_version_sql).fetchone()[2])
+        result = int(connection.execute(db_version_sql).fetchone()[2])
+
+    engine.dispose()
+    return result
+
 
 
 @cli.command("print-db-version")
@@ -235,11 +245,12 @@ def update_api_key(api_key):
     """
     )
 
-    engine = create_database_engine()
-    with engine.connect() as connection:
+    with DatabaseEngine as engine, engine.connect() as connection:
 
         connection.execute(update_api_key_sql, api_key=api_key)
         logger.info(f"Updated Augur API key to: {api_key}")
+
+    engine.dispose()
 
 
 @cli.command("get-api-key")
@@ -253,11 +264,12 @@ def get_api_key():
     )
 
     try:
-        engine = create_database_engine()
-        with engine.connect() as connection:
+        with DatabaseEngine as engine, engine.connect() as connection:
             print(connection.execute(get_api_key_sql).fetchone()[0])
     except TypeError:
         print("No Augur API key found.")
+
+    engine.dispose()
 
 
 @cli.command(

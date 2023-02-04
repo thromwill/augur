@@ -10,10 +10,12 @@ import click
 import logging
 from werkzeug.security import generate_password_hash
 from augur.application.db.models import User
-from augur.application.db.engine import create_database_engine
+from augur.application.db.engine import DatabaseEngine
 from sqlalchemy.orm import sessionmaker
 
-Session = sessionmaker(bind=create_database_engine())
+
+engine = DatabaseEngine().engine
+Session = sessionmaker(bind=engine)
 
 logger = logging.getLogger(__name__)
 
@@ -53,4 +55,8 @@ def add_user(username, email, firstname, lastname, admin, phone_number, password
         user_type = "admin user" if admin else "user"
         message = f"Successfully added new: {username}"
         click.secho(message, bold=True)
+
+        session.close()
+        engine.dispose()
+        
         return 0

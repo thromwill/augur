@@ -12,12 +12,13 @@ import sqlalchemy as s
 # Disable the requirement for SSL by setting env["AUGUR_DEV"] = True
 from augur.application.config import get_development_flag
 from augur.application.db.models import Config
+from augur.application.config import AugurConfig
 from augur.application.db.session import DatabaseSession
 
 logger = logging.getLogger(__name__)
 development = get_development_flag()
 
-AUGUR_API_VERSION = 'api/unstable'
+from augur.api.routes import AUGUR_API_VERSION
 
 def generate_upgrade_request():
     # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/426
@@ -28,12 +29,6 @@ def generate_upgrade_request():
     return response, 426
 
 def create_routes(server):
-
-    @server.app.errorhandler(405)
-    def unsupported_method(error):
-        return jsonify({"status": "Unsupported method"}), 405
-
-
     @server.app.route(f"/{AUGUR_API_VERSION}/config/get", methods=['GET', 'POST'])
     def get_config():
         if not development and not request.is_secure:
@@ -41,7 +36,7 @@ def create_routes(server):
 
         with DatabaseSession(logger) as session:
             
-            config_dict = session.config.load_config()
+            config_dict = AugurConfig(logger, session).config.load_config()
 
         return jsonify(config_dict), 200
 

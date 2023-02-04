@@ -1,41 +1,57 @@
 import time
 import logging
-
+import traceback
 
 from augur.tasks.github.pull_requests.core import *
-from augur.tasks.init.celery_app import celery_app as celery, engine
+from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
 from augur.tasks.github.util.github_task_session import GithubTaskSession
+from augur.application.db.session import DatabaseSession
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.tasks.github.util.util import add_key_value_pair_to_dicts, get_owner_repo
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, PullRequestMessageRef, Contributor, Repo
+from augur.application.db.util import execute_session_query
+
 
 platform_id = 1
 
 
 @celery.task
-def collect_pull_requests(repo_git: str) -> None:
+def collect_pull_requests(repo_git_identifiers: [str]) -> None:
+
+    from augur.tasks.init.celery_app import engine
+
+    print(f"Eventlet engine id: {id(engine)}")
 
     logger = logging.getLogger(collect_pull_requests.__name__)
 
-    with GithubTaskSession(logger, engine) as session:
+    with DatabaseSession(logger, engine) as session:
 
-        repo_id = session.query(Repo).filter(
-            Repo.repo_git == repo_git).one().repo_id
+        for repo_git in repo_git_identifiers:
+            try:
 
-    owner, repo = get_owner_repo(repo_git)
-    pr_data = retrieve_all_pr_data(repo_git, logger)
+                repo_id = session.query(Repo).filter(
+                Repo.repo_git == repo_git).one().repo_id
 
-    if pr_data:
-        process_pull_requests(pr_data, f"{owner}/{repo}: Pr task", repo_id, logger)
-    else:
-        logger.info(f"{owner}/{repo} has no pull requests")
-    
+                owner, repo = get_owner_repo(repo_git)
+                pr_data = retrieve_all_pr_data(repo_git, logger)
+
+                if pr_data:
+                    process_pull_requests(pr_data, f"{owner}/{repo}: Pr task", repo_id, logger)
+                else:
+                    logger.info(f"{owner}/{repo} has no pull requests")
+            except Exception as e:
+                logger.error(f"Could not collect pull requests for {repo_git}\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+        
     
 # TODO: Rename pull_request_reviewers table to pull_request_requested_reviewers
 # TODO: Fix column names in pull request labels table
 def retrieve_all_pr_data(repo_git: str, logger) -> None:
+
+    from augur.tasks.init.celery_app import engine
+
+    print(f"Eventlet engine id: {id(engine)}")
 
     owner, repo = get_owner_repo(repo_git)
 
@@ -72,13 +88,15 @@ def retrieve_all_pr_data(repo_git: str, logger) -> None:
     
 def process_pull_requests(pull_requests, task_name, repo_id, logger):
 
+    from augur.tasks.init.celery_app import engine
+
     tool_source = "Pr Task"
     tool_version = "2.0"
     data_source = "Github API"
 
     pr_dicts, pr_mapping_data, pr_numbers, contributors = extract_data_from_pr_list(pull_requests, repo_id, tool_source, tool_version, data_source)
 
-    with GithubTaskSession(logger, engine) as session:
+    with DatabaseSession(logger, engine) as session:
 
         insert_pr_contributors(contributors, session, task_name)
 
@@ -147,6 +165,8 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger):
 
 @celery.task
 def pull_request_review_comments(repo_git: str) -> None:
+    
+    from augur.tasks.init.celery_app import engine
 
     owner, repo = get_owner_repo(repo_git)
 
@@ -162,7 +182,8 @@ def pull_request_review_comments(repo_git: str) -> None:
         pr_review_comments = GithubPaginator(url, session.oauths, logger)
 
         # get repo_id
-        repo_id = session.query(Repo).filter(Repo.repo_git == repo_git).one().repo_id
+        query = session.query(Repo).filter(Repo.repo_git == repo_git)
+        repo_id = execute_session_query(query, 'one').repo_id
 
 
         tool_source = "Pr review comment task"
@@ -240,6 +261,8 @@ def pull_request_review_comments(repo_git: str) -> None:
 @celery.task
 def pull_request_reviews(repo_git: str, pr_number_list: [int]) -> None:
 
+    from augur.tasks.init.celery_app import engine
+
     logger = logging.getLogger(pull_request_reviews.__name__)
 
     owner, repo = get_owner_repo(repo_git)
@@ -251,7 +274,8 @@ def pull_request_reviews(repo_git: str, pr_number_list: [int]) -> None:
 
     with GithubTaskSession(logger, engine) as session:
 
-        repo_id = session.query(Repo).filter(Repo.repo_git == repo_git).one().repo_id
+        query = session.query(Repo).filter(Repo.repo_git == repo_git)
+        repo_id = execute_session_query(query, 'one').repo_id
 
         # define GithubTaskSession to handle insertions, and store oauth keys 
 

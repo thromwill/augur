@@ -1,46 +1,58 @@
 import time
 import logging
+import traceback
 
-
-from augur.tasks.init.celery_app import celery_app as celery, engine
+from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
 from augur.tasks.github.util.github_task_session import GithubTaskSession
+from augur.application.db.session import DatabaseSession
 from augur.tasks.github.util.util import get_owner_repo
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
+from augur.application.db.util import execute_session_query
 
 platform_id = 1
 
 
 @celery.task
-def collect_events(repo_git: str):
+def collect_events(repo_git_identifiers: [str]):
+
+    from augur.tasks.init.celery_app import engine
 
     logger = logging.getLogger(collect_events.__name__)
     
-        # define GithubTaskSession to handle insertions, and store oauth keys 
-    with GithubTaskSession(logger) as session:
+    with DatabaseSession(logger, engine) as session:
 
-        repo_obj = session.query(Repo).filter(Repo.repo_git == repo_git).one()
-        repo_id = repo_obj.repo_id
+        for repo_git in repo_git_identifiers:
 
-        owner, repo = get_owner_repo(repo_git)
+            try:
+                
+                query = session.query(Repo).filter(Repo.repo_git == repo_git)
+                repo_obj = execute_session_query(query, 'one')
+                repo_id = repo_obj.repo_id
 
-        logger.info(f"Collecting Github events for {owner}/{repo}")
+                owner, repo = get_owner_repo(repo_git)
 
-        url = f"https://api.github.com/repos/{owner}/{repo}/issues/events"
+                logger.info(f"Collecting Github events for {owner}/{repo}")
 
-    event_data = retrieve_all_event_data(repo_git, logger)
+                url = f"https://api.github.com/repos/{owner}/{repo}/issues/events"
 
-    if event_data:
+                event_data = retrieve_all_event_data(repo_git, logger)
 
-        process_events(event_data, f"{owner}/{repo}: Event task", repo_id, logger)
+                if event_data:
+                
+                    process_events(event_data, f"{owner}/{repo}: Event task", repo_id, logger)
 
-    else:
-        logger.info(f"{owner}/{repo} has no events")
+                else:
+                    logger.info(f"{owner}/{repo} has no events")
+            except Exception as e:
+                logger.error(f"Could not collect events for {repo_git}\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
 
 
 def retrieve_all_event_data(repo_git: str, logger):
+
+    from augur.tasks.init.celery_app import engine
 
     owner, repo = get_owner_repo(repo_git)
 
@@ -48,7 +60,6 @@ def retrieve_all_event_data(repo_git: str, logger):
 
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/events"
     
-        # define GithubTaskSession to handle insertions, and store oauth keys 
     with GithubTaskSession(logger, engine) as session:
     
         # returns an iterable of all issues at this url (this essentially means you can treat the issues variable as a list of the issues)
@@ -74,6 +85,8 @@ def retrieve_all_event_data(repo_git: str, logger):
     return all_data        
 
 def process_events(events, task_name, repo_id, logger):
+
+    from augur.tasks.init.celery_app import engine
     
     tool_source = "Github events task"
     tool_version = "2.0"
@@ -83,7 +96,7 @@ def process_events(events, task_name, repo_id, logger):
     issue_event_dicts = []
     contributors = []
 
-    with GithubTaskSession(logger, engine) as session:
+    with DatabaseSession(logger, engine) as session:
 
         not_mapable_event_count = 0
         event_len = len(events)
@@ -102,7 +115,8 @@ def process_events(events, task_name, repo_id, logger):
                 pr_url = event_mapping_data["pull_request"]["url"]
 
                 try:
-                    related_pr = session.query(PullRequest).filter(PullRequest.pr_url == pr_url).one()
+                    query = session.query(PullRequest).filter(PullRequest.pr_url == pr_url)
+                    related_pr = execute_session_query(query, 'one')
                 except s.orm.exc.NoResultFound:
                     logger.info(f"{task_name}: Could not find related pr")
                     logger.info(f"{task_name}: We were searching for: {pr_url}")
@@ -119,7 +133,8 @@ def process_events(events, task_name, repo_id, logger):
                 issue_url = event_mapping_data["url"]
 
                 try:
-                    related_issue = session.query(Issue).filter(Issue.issue_url == issue_url).one()
+                    query = session.query(Issue).filter(Issue.issue_url == issue_url)
+                    related_issue = execute_session_query(query, 'one')
                 except s.orm.exc.NoResultFound:
                     logger.info(f"{task_name}: Could not find related pr")
                     logger.info(

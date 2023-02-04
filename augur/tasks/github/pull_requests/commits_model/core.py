@@ -4,14 +4,16 @@ import traceback
 import sqlalchemy as s
 from augur.application.db.data_parse import *
 from augur.application.db.session import DatabaseSession
-from augur.tasks.init.celery_app import engine
 from augur.tasks.github.util.github_task_session import GithubTaskSession
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
 from augur.application.db.models import *
 from augur.tasks.github.util.util import get_owner_repo
+from augur.application.db.util import execute_session_query
 
 
 def pull_request_commits_model(repo_id,logger):
+
+    from augur.tasks.init.celery_app import engine
     
     # query existing PRs and the respective url we will append the commits url to
     pr_url_sql = s.sql.text("""
@@ -21,10 +23,13 @@ def pull_request_commits_model(repo_id,logger):
         """).bindparams(repo_id=repo_id)
     pr_urls = []
     #pd.read_sql(pr_number_sql, self.db, params={})
-    session = GithubTaskSession(logger)
+
+    # TODO: Is this session ever closed?
+    session = GithubTaskSession(logger, engine)
     pr_urls = session.fetchall_data_from_sql_text(pr_url_sql)#session.execute_sql(pr_number_sql).fetchall()
     
-    repo = session.query(Repo).filter(Repo.repo_id == repo_id).one()
+    query = session.query(Repo).filter(Repo.repo_id == repo_id)
+    repo = execute_session_query(query, 'one')
 
     owner, name = get_owner_repo(repo.repo_git)
 

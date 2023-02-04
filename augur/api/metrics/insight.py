@@ -7,8 +7,8 @@ import sqlalchemy as s
 import pandas as pd
 from augur.api.util import register_metric
 
-from augur.application.db.engine import create_database_engine
-engine = create_database_engine()
+from augur.application.db.engine import DatabaseEngine
+engine = DatabaseEngine(connection_pool_size=1).engine
 
 @register_metric(type="repo_group_only")
 def top_insights(repo_group_id, num_repos=6):
@@ -26,7 +26,7 @@ def top_insights(repo_group_id, num_repos=6):
             SELECT repo_id
             FROM repo
             WHERE repo_group_id = :repo_group_id
-            AND repo_id IN (SELECT repo_id FROM repo_insights GROUP BY repo_id, ri_id HAVING 304 > count(repo_insights.repo_id) ORDER BY ri_id desc)
+            AND repo_id IN (SELECT repo_id FROM repo_insights GROUP BY repo_id, ri_id HAVING 304 > count(repo_insights.repo_id) ORDER BY ri_id desc))
             LIMIT :num_repos
         )
     """)

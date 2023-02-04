@@ -9,7 +9,8 @@ from collections import Counter
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.session import DatabaseSession
 from augur.application.db.models import Repo, DiscourseInsight
-from augur.application.db.engine import create_database_engine
+from augur.application.db.engine import DatabaseEngine
+from augur.application.db.util import execute_session_query
 
 #import os, sys, time, requests, json
 # from sklearn.model_selection import train_test_split
@@ -33,15 +34,18 @@ DISCOURSE_ANALYSIS_DIR = "augur/tasks/data_analysis/discourse_analysis/"
 @celery.task
 def discourse_analysis_model(repo_git: str) -> None:
 
+    from augur.tasks.init.celery_app import engine
+
     logger = logging.getLogger(discourse_analysis_model.__name__)
 
     tool_source = 'Discourse Worker'
     tool_version = '0.1.0'
     data_source = 'Analysis of Issue/PR Messages'
 
-    with DatabaseSession(logger) as session:
+    with DatabaseSession(logger, engine) as session:
 
-        repo_id = session.query(Repo).filter(Repo.repo_git == repo_git).one().repo_id
+        query = session.query(Repo).filter(Repo.repo_git == repo_git)
+        repo_id = execute_session_query(query, 'one').repo_id
 
     get_messages_for_repo_sql = s.sql.text("""
                 (SELECT r.repo_group_id, r.repo_id, r.repo_git, r.repo_name, i.issue_id thread_id,m.msg_text,i.issue_title thread_title,m.msg_id
@@ -62,7 +66,7 @@ def discourse_analysis_model(repo_git: str) -> None:
             """)
 
     # result = db.execute(delete_points_SQL, repo_id=repo_id, min_date=min_date)
-    msg_df_cur_repo = pd.read_sql(get_messages_for_repo_sql, create_database_engine(), params={"repo_id": repo_id})
+    msg_df_cur_repo = pd.read_sql(get_messages_for_repo_sql, engine, params={"repo_id": repo_id})
     msg_df_cur_repo = msg_df_cur_repo.sort_values(by=['thread_id']).reset_index(drop=True)
     logger.info(msg_df_cur_repo.head())
 
@@ -85,7 +89,7 @@ def discourse_analysis_model(repo_git: str) -> None:
     logger.debug(f"y_pred_git_flat len: {len(y_pred_git_flat)}")
     msg_df_cur_repo['discourse_act'] = y_pred_git_flat
 
-    with DatabaseSession(logger) as session:
+    with DatabaseSession(logger, engine) as session:
         for index, row in msg_df_cur_repo.iterrows():
             record = {
                 'msg_id': row['msg_id'],
@@ -185,11 +189,10 @@ def create_features_for_structured_prediction(df, text_data_column_name, group_b
         X_cur = []
         if label_available: y_cur = []
         for ind, row in group.iterrows():
-            row['tfidf_features']['normalized_num_sentences'] = row['tfidf_features'][
-                                                                    'num_sentences'] / sentence_count  # added
-            row['tfidf_features']['normalized_num_words'] = row['tfidf_features']['num_words'] / word_count  # added
-            row['tfidf_features']['normalized_num_characters'] = row['tfidf_features'][
-                                                                     'num_characters'] / character_count  # added
+
+            row['tfidf_features']['normalized_num_sentences'] = row['tfidf_features']['num_sentences'] / sentence_count if sentence_count != 0 else 0
+            row['tfidf_features']['normalized_num_words'] = row['tfidf_features']['num_words'] / word_count  if word_count != 0 else 0
+            row['tfidf_features']['normalized_num_characters'] = row['tfidf_features']['num_characters'] / character_count  if character_count != 0 else 0
             # print(row)
             X_cur.append(row['tfidf_features'])
             if label_available: y_cur.append(row['majority_type'])
