@@ -18,9 +18,14 @@ from augur.application.db.session import DatabaseSession
 from augur.tasks.init.celery_app import engine
 from augur.tasks.github.util.github_task_session import GithubTaskSession
 from augur.tasks.github.util.util import add_key_value_pair_to_dicts
-from augur.tasks.util.worker_util import remove_duplicate_dicts
+from augur.tasks.util.worker_util import remove_duplicate_dicts, remove_duplicates_by_uniques
 from augur.application.db.models import Issue, IssueEvent, IssueLabel, IssueAssignee, Contributor, Repo
 
+def is_pr(issue):
+    return (
+        'pull_request' in issue and issue['pull_request']
+        and isinstance(issue['pull_request'], dict) and 'url' in issue['pull_request']
+    )
 
 def extract_data_from_issue(issue: dict, 
                         repo_id: int, 
@@ -45,15 +50,12 @@ def extract_data_from_issue(issue: dict,
     # calls is_valid_pr_block to see if the data is a pr.
     # if it is a pr we skip it because we don't need prs 
     # in the issues table
-    if is_valid_pr_block(issue) is True:
-        issue_total-=1
-        continue
+    if is_pr(issue) is True:
+        # issue_total-=1
+        return None, None, None, None
 
     issue, contributor_data = process_issue_contributors(issue, tool_source, tool_version, data_source)
 
-    contributors += contributor_data
-
-    
     # get only the needed data for the issues table
     issue_dict = extract_needed_issue_data(issue, repo_id, tool_source, tool_version, data_source)
     
@@ -105,6 +107,8 @@ def extract_data_from_issue_list(issues: List[dict],
     for issue in issues:
 
         issue, labels, assignees, contributor_data = extract_data_from_issue(issue, repo_id, tool_source, tool_version, data_source)
+        if issue is None:
+            continue
 
         contributors += contributor_data
 
@@ -116,12 +120,10 @@ def extract_data_from_issue_list(issues: List[dict],
                                             "assignees": assignees,
                                             }           
        
-
-
     return issue_dicts, issue_mapping_data, contributors
 
 
-def insert_issue_contributors(contributors: List[dict], session: GithubTaskSession, task_name: str) -> None:
+def insert_issue_contributors(session, logger, task_name, contributors: List[dict]) -> None:
     """Insert pr contributors
     
     Args:
@@ -138,7 +140,7 @@ def insert_issue_contributors(contributors: List[dict], session: GithubTaskSessi
     session.insert_data(contributors, Contributor, ["cntrb_id"])
 
 
-def insert_issues(pr_dicts: List[dict], session: GithubTaskSession, task_name: str) -> Optional[List[dict]]:
+def insert_issues(session, logger, task_name, issue_dicts: List[dict]) -> Optional[List[dict]]:
     """Insert pull requests
     
     Args:
@@ -161,12 +163,12 @@ def insert_issues(pr_dicts: List[dict], session: GithubTaskSession, task_name: s
 
     issue_return_data = session.insert_data(issue_dicts, Issue, issue_natural_keys, return_columns=issue_return_columns, string_fields=issue_string_columns)
 
-    return pr_return_data
+    return issue_return_data
 
-def map_other_issue_data_to_issue(
+def map_other_issue_data_to_issue(logger, task_name,
                             issue_return_data: List[dict], 
                             issue_mapping_data: Dict[str, Dict[str, List[dict]]], 
-                            logger: logging.Logger) -> Tuple[List[dict], List[dict], List[dict], List[dict]]:
+                            ) -> Tuple[List[dict], List[dict], List[dict], List[dict]]:
     """Map labels, assigness, reviewers, and metadata to their respecive prs
     
     Args:
@@ -204,7 +206,7 @@ def map_other_issue_data_to_issue(
 
 
 
-def insert_issue_labels(labels: List[dict]) -> None:
+def insert_issue_labels(session, logger, labels: List[dict]) -> None:
     """Insert pull request labels
 
     Note:
@@ -214,17 +216,16 @@ def insert_issue_labels(labels: List[dict]) -> None:
         labels: list of labels to insert
         logger: handles logging
     """
-    with DatabaseSession(logger) as session:
 
-        # we are using label_src_id and issue_id to determine if the label is already in the database.
-        issue_label_natural_keys = ['label_src_id', 'issue_id']
-        issue_label_string_fields = ["label_text", "label_description"]
-        session.insert_data(issue_label_dicts, IssueLabel,
-                            issue_label_natural_keys, string_fields=issue_label_string_fields)
-
+    # we are using label_src_id and issue_id to determine if the label is already in the database.
+    issue_label_natural_keys = ['label_src_id', 'issue_id']
+    issue_label_string_fields = ["label_text", "label_description"]
+    session.insert_data(labels, IssueLabel,
+                        issue_label_natural_keys, string_fields=issue_label_string_fields)
 
 
-def insert_issue_assignees(assignees: List[dict]) -> None:
+
+def insert_issue_assignees(session, logger, assignees: List[dict]) -> None:
     """Insert pull request assignees
 
     Note:
@@ -234,12 +235,9 @@ def insert_issue_assignees(assignees: List[dict]) -> None:
         assignees: list of assignees to insert
         logger: handles logging
     """
-    with DatabaseSession(logger) as session:
-
-        # we are using issue_assignee_src_id and issue_id to determine if the label is already in the database.
-        issue_assignee_natural_keys = ['issue_assignee_src_id', 'issue_id']
-        session.insert_data(issue_assignee_dicts, IssueAssignee, issue_assignee_natural_keys)
-
+    # we are using issue_assignee_src_id and issue_id to determine if the label is already in the database.
+    issue_assignee_natural_keys = ['issue_assignee_src_id', 'issue_id']
+    session.insert_data(assignees, IssueAssignee, issue_assignee_natural_keys)
 
 
 def process_issue_contributors(issue, tool_source, tool_version, data_source):
@@ -256,11 +254,8 @@ def process_issue_contributors(issue, tool_source, tool_version, data_source):
         assignee["cntrb_id"] = issue_assignee_cntrb["cntrb_id"]
         contributors.append(issue_assignee_cntrb)
 
+    contributors = remove_duplicates_by_uniques(contributors, ["cntrb_login"])
+
     return issue, contributors
 
 
-def is_valid_pr_block(issue):
-    return (
-        'pull_request' in issue and issue['pull_request']
-        and isinstance(issue['pull_request'], dict) and 'url' in issue['pull_request']
-    )
