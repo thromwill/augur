@@ -318,7 +318,7 @@ def analyze_commits_in_parallel(repo_ids, multithreaded: bool)-> None:
         else:
             return
 
-        logger.info(f"Got to analysis!")
+        logger.info(f"Got to analysis for repo {repo_id}")
         
         for count, commitTuple in enumerate(queue):
             quarterQueue = int(len(queue) / 4)
@@ -328,20 +328,16 @@ def analyze_commits_in_parallel(repo_ids, multithreaded: bool)-> None:
 
             #Log progress when another quarter of the queue has been processed
             if (count + 1) % quarterQueue == 0:
-                logger.info(f"Progress through current analysis queue is {(count / len(queue)) * 100}%")
+                logger.info(f"Progress through current analysis queue is {(count / len(queue)) * 100}% for repo {repo_id}")
 
             query = session.query(Repo).filter(Repo.repo_id == repo_id)
             repo = execute_session_query(query,'one')
-
-        logger.info(f"Got to analysis!")
-        
-        for count, commitTuple in enumerate(queue):
 
             repo_loc = (f"{session.repo_base_directory}{repo.repo_group_id}/{repo.repo_path}{repo.repo_name}/.git")    
 
             analyze_commit(session, repo_id, repo_loc, commitTuple)
 
-    logger.info("Analysis complete")
+    logger.info(f"Analysis complete for repos {tuple(repo_ids)}")
     return
 
 @celery.task
