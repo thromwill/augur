@@ -102,7 +102,10 @@ def repo_collect_phase():
     result = chain(repo_task_group, refresh_materialized_views.si()).apply_async()
     
     with allow_join_result():
-        result.wait()
+        #result.wait()
+        while not result.ready():
+            logger.info(f"Waiting for tasks to finish...")
+            time.sleep(180)
 
     if len(np_clustered_array) == 0:
         return
@@ -136,7 +139,10 @@ def repo_collect_phase():
         result = chain(repo_task_group, refresh_materialized_views.si()).apply_async()
     
         with allow_join_result():
-            result.wait()
+            #result.wait()
+            while not result.ready():
+                logger.info(f"Waiting for tasks to finish...")
+                time.sleep(180)
 
     return 
 
