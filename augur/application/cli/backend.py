@@ -85,8 +85,11 @@ def start(disable_collection, development, port):
             os.remove("celerybeat-schedule.db")
 
         worker = f"celery -A augur.tasks.init.celery_app.celery_app worker -l info --concurrency=20 -n {uuid.uuid4().hex}@%h"
-
+        facade_worker = f"celery -A augur.tasks.init.celery_app.celery_app worker -l info --concurrency=15 -n {uuid.uuid4().hex}@%h -Q facade"
+        scheduling_worker = f"celery -A augur.tasks.init.celery_app.celery_app worker -l info --concurrency=1 -n scheduling:{uuid.uuid4().hex}@%h -Q scheduling"
         worker_process = subprocess.Popen(worker.split(" "))
+        scheduling_worker_process = subprocess.Popen(scheduling_worker.split(" "))
+        facade_worker_process = subprocess.Popen(facade_worker.split(" "))
         time.sleep(5)
 
         start_task.si().apply_async()
