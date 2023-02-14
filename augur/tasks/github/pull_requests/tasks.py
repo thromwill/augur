@@ -215,13 +215,13 @@ def pull_request_review_comments(repo_git: str) -> None:
     logger.info(f"Collecting pull request comments for {owner}/{repo}")
     
     # define GithubTaskSession to handle insertions, and store oauth keys 
-    with GithubTaskSession(logger, engine) as session:
+    with GithubTaskManifest(logger) as manifest:
 
         # returns an iterable of all issues at this url (this essentially means you can treat the issues variable as a list of the issues)
-        pr_review_comments = GithubPaginator(url, session.oauths, logger)
+        pr_review_comments = GithubPaginator(url, manifest.key_auth, logger)
 
         # get repo_id
-        query = session.query(Repo).filter(Repo.repo_git == repo_git)
+        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo_id = execute_session_query(query, 'one').repo_id
 
 
@@ -267,7 +267,7 @@ def pull_request_review_comments(repo_git: str) -> None:
         logger.info(f"Inserting {len(pr_review_comment_dicts)} pr review comments")
         message_natural_keys = ["platform_msg_id"]
         message_return_columns = ["msg_id", "platform_msg_id"]
-        message_return_data = session.insert_data(pr_review_comment_dicts, Message, message_natural_keys, message_return_columns)
+        message_return_data = manifest.augur_db_engine.insert_data(pr_review_comment_dicts, Message, message_natural_keys, message_return_columns)
 
 
         pr_review_message_ref_insert_data = []
@@ -293,7 +293,7 @@ def pull_request_review_comments(repo_git: str) -> None:
 
         logger.info(f"Inserting {len(pr_review_message_ref_insert_data)} pr review refs")
         pr_comment_ref_natural_keys = ["pr_review_msg_src_id"]
-        session.insert_data(pr_review_message_ref_insert_data, PullRequestReviewMessageRef, pr_comment_ref_natural_keys)
+        manifest.augur_db_engine.insert_data(pr_review_message_ref_insert_data, PullRequestReviewMessageRef, pr_comment_ref_natural_keys)
 
 
 # do this task after others because we need to add the multi threading like we did it before
@@ -311,9 +311,9 @@ def pull_request_reviews(repo_git: str, pr_number_list: [int]) -> None:
     tool_version = "2.0"
     data_source = "Github API"
 
-    with GithubTaskSession(logger, engine) as session:
+    with GithubTaskManifest(logger) as manifest:
 
-        query = session.query(Repo).filter(Repo.repo_git == repo_git)
+        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo_id = execute_session_query(query, 'one').repo_id
 
         # define GithubTaskSession to handle insertions, and store oauth keys 
@@ -330,7 +330,7 @@ def pull_request_reviews(repo_git: str, pr_number_list: [int]) -> None:
 
             logger.info(f"Processing pr number: {pr_number}")
 
-            reviews = PullRequest(session, owner, repo, pr_number).get_reviews_collection()
+            reviews = PullRequest(manifest.session, owner, repo, pr_number).get_reviews_collection()
 
             review_list = list(reviews)
 

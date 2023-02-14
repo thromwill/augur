@@ -5,7 +5,6 @@ import logging
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
-from augur.tasks.github.util.github_task_session import GithubTaskSession
 from augur.tasks.github.util.util import get_owner_repo
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
@@ -14,9 +13,10 @@ from augur.tasks.util.worker_util import create_grouped_task_load
 from celery.result import allow_join_result
 from augur.application.db.util import execute_session_query
 from augur.tasks.git.util.facade_worker.facade_worker.facade00mainprogram import *
+from augur.tasks.git.util.facade_worker.facade_worker.facade01config import FacadeTaskManifest
 
 
-def process_commit_metadata(session,contributorQueue,repo_id):
+def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform_id, contributorQueue,repo_id):
 
     for contributor in contributorQueue:
         # Get the email from the commit data
@@ -46,7 +46,7 @@ def process_commit_metadata(session,contributorQueue,repo_id):
 
                 continue
         except Exception as e:
-            session.logger.info(
+            logger.info(
                 f"Successfully retrieved data from github for email: {emailFromCommitData}")
         
         #Check the unresolved_commits table to avoid hitting endpoints that we know don't have relevant data needlessly
@@ -61,7 +61,7 @@ def process_commit_metadata(session,contributorQueue,repo_id):
 
                 continue
         except Exception as e:
-            session.logger.info(f"Failed to query unresolved alias table with error: {e}")
+            logger.info(f"Failed to query unresolved alias table with error: {e}")
     
 
         login = None
@@ -74,28 +74,28 @@ def process_commit_metadata(session,contributorQueue,repo_id):
             login = contributors_with_matching_name.gh_login
 
         except Exception as e:
-            session.logger.debug(f"Failed local login lookup with error: {e}")
+            logger.debug(f"Failed local login lookup with error: {e}")
         
 
         # Try to get the login from the commit sha
         if login == None or login == "":
-            login = get_login_with_commit_hash(session,contributor, repo_id)
+            login = get_login_with_commit_hash(session, key_auth, logger, contributor, repo_id)
     
         if login == None or login == "":
-            session.logger.info("Failed to get login from commit hash")
+            logger.info("Failed to get login from commit hash")
             # Try to get the login from supplemental data if not found with the commit hash
-            login = get_login_with_supplemental_data(session,contributor)
+            login = get_login_with_supplemental_data(augur_db_engine, logger, key_auth, contributor)
     
         if login == None or login == "":
-            session.logger.error("Failed to get login from supplemental data!")
+            logger.error("Failed to get login from supplemental data!")
             continue
 
         url = ("https://api.github.com/users/" + login)
 
-        user_data = request_dict_from_endpoint(session,url)
+        user_data = request_dict_from_endpoint(key_auth, url)
 
         if user_data == None:
-            session.logger.warning(
+            logger.warning(
                 f"user_data was unable to be reached. Skipping...")
             continue
 
@@ -112,7 +112,7 @@ def process_commit_metadata(session,contributorQueue,repo_id):
 
             cntrb_id = GithubUUID()
             cntrb_id["user"] = int(user_data['id'])
-            cntrb_id["platform"] = session.platform_id
+            cntrb_id["platform"] = platform_id
 
             # try to add contributor to database
             cntrb = {
@@ -153,25 +153,25 @@ def process_commit_metadata(session,contributorQueue,repo_id):
             #session.logger.info(f"{cntrb}")
 
         except Exception as e:
-            session.logger.info(f"Error when trying to create cntrb: {e}")
+            logger.info(f"Error when trying to create cntrb: {e}")
             continue
         
         
         #Executes an upsert with sqlalchemy 
         cntrb_natural_keys = ['cntrb_login']
         try:
-            session.insert_data(cntrb,Contributor,cntrb_natural_keys)
+            augur_db_engine.insert_data(cntrb,Contributor,cntrb_natural_keys)
         except Exception as e:
-            session.logger.error(f"Could not complete singular contributor insert!!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+            logger.error(f"Could not complete singular contributor insert!!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             continue
 
         try:
             # Update alias after insertion. Insertion needs to happen first so we can get the autoincrementkey
-            insert_alias(session,cntrb, emailFromCommitData)
+            insert_alias(session, augur_db_engine, logger, cntrb, emailFromCommitData)
         except LookupError as e:
-            session.logger.info(
+            logger.info(
                 ''.join(traceback.format_exception(None, e, e.__traceback__)))
-            session.logger.info(
+            logger.info(
                 f"Contributor id not able to be found in database despite the user_id existing. Something very wrong is happening. Error: {e}")
             return 
         
@@ -185,26 +185,26 @@ def process_commit_metadata(session,contributorQueue,repo_id):
             WHERE email='{}'
         """.format(email))
 
-        session.logger.info(f"Updating now resolved email {email}")
+        logger.info(f"Updating now resolved email {email}")
 
         try:
             #interface.db.execute(query)
             #session.query(UnresolvedCommitEmail).filter(UnresolvedCommitEmail.email == email).delete()
             #session.commit()
-            session.execute_sql(query)
+            augur_db_engine.execute_sql(query)
         except Exception as e:
-            session.logger.info(
+            logger.info(
                 f"Deleting now resolved email failed with error: {e}")
     
         
     return
 
 
-def link_commits_to_contributor(session,contributorQueue):
+def link_commits_to_contributor(util, logger, contributorQueue):
 
     # # iterate through all the commits with emails that appear in contributors and give them the relevant cntrb_id.
     for cntrb in contributorQueue:
-        session.logger.debug(
+        logger.debug(
             f"These are the emails and cntrb_id's  returned: {cntrb}")
 
         query = s.sql.text("""
@@ -216,7 +216,7 @@ def link_commits_to_contributor(session,contributorQueue):
         """).bindparams(cntrb_id=cntrb["cntrb_id"],cntrb_email=cntrb["email"])
 
         #engine.execute(query, **data)
-        session.insert_or_update_data(query)          
+        util.insert_or_update_data(query)          
         
     
     return
@@ -226,17 +226,15 @@ def link_commits_to_contributor(session,contributorQueue):
 @celery.task
 def insert_facade_contributors(repo_id):
 
-    from augur.tasks.init.celery_app import engine
-
     logger = logging.getLogger(insert_facade_contributors.__name__)
 
-    with GithubTaskSession(logger, engine) as session:
+    with GithubTaskManifest(logger) as manifest:
         
 
         # Get all of the commit data's emails and names from the commit table that do not appear
         # in the contributors table or the contributors_aliases table.
 
-        session.logger.info(
+        logger.info(
         "Beginning process to insert contributors from facade commits for repo w entry info: {}\n".format(repo_id))
         new_contrib_sql = s.sql.text("""
                 SELECT DISTINCT
@@ -276,7 +274,7 @@ def insert_facade_contributors(repo_id):
         """).bindparams(repo_id=repo_id)
 
         #Execute statement with session.
-        result = session.execute_sql(new_contrib_sql).fetchall()
+        result = manifest.augur_db_engine.execute_sql(new_contrib_sql).fetchall()
         new_contribs = [dict(zip(row.keys(), row)) for row in result]
 
         #print(new_contribs)
@@ -286,12 +284,12 @@ def insert_facade_contributors(repo_id):
 
 
 
-        process_commit_metadata(session,list(new_contribs),repo_id)
+        process_commit_metadata(manifest.session, manifest.augur_db_engine, manifest.key_auth, manifest.platform_id, logger, list(new_contribs),repo_id)
 
-        session.logger.debug("DEBUG: Got through the new_contribs")
+        logger.debug("DEBUG: Got through the new_contribs")
     
 
-    with FacadeSession(logger) as session:
+    with FacadeTaskManifest(logger) as manifest:
         # sql query used to find corresponding cntrb_id's of emails found in the contributor's table
         # i.e., if a contributor already exists, we use it!
         resolve_email_to_cntrb_id_sql = s.sql.text("""
@@ -327,12 +325,12 @@ def insert_facade_contributors(repo_id):
         #existing_cntrb_emails = json.loads(pd.read_sql(resolve_email_to_cntrb_id_sql, self.db, params={
         #                                    'repo_id': repo_id}).to_json(orient="records"))
 
-        result = session.execute_sql(resolve_email_to_cntrb_id_sql).fetchall()
+        result = manifest.augur_db_engine.execute_sql(resolve_email_to_cntrb_id_sql).fetchall()
         existing_cntrb_emails = [dict(zip(row.keys(), row)) for row in result]
 
         print(existing_cntrb_emails)
-        link_commits_to_contributor(session,list(existing_cntrb_emails))
+        link_commits_to_contributor(manifest.util, list(existing_cntrb_emails))
 
-        session.logger.info("Done with inserting and updating facade contributors")
+        logger.info("Done with inserting and updating facade contributors")
     return
 

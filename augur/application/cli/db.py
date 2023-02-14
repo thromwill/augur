@@ -42,10 +42,10 @@ def add_repos(filename):
     NOTE: The Group ID must already exist in the REPO_Groups Table.
 
     If you want to add an entire GitHub organization, refer to the command: augur db add-github-org"""   
-    from augur.tasks.github.util.github_task_session import GithubTaskSession
+    from augur.application.db.session import DatabaseSession
     from augur.util.repo_load_controller import RepoLoadController
 
-    with GithubTaskSession(logger) as session:
+    with DatabaseSession(logger) as session:
 
         controller = RepoLoadController(session)
 
@@ -143,10 +143,10 @@ def add_github_org(organization_name):
     """
     Create new repo groups in Augur's database
     """
-    from augur.tasks.github.util.github_task_session import GithubTaskSession
+    from augur.application.db.session import DatabaseSession
     from augur.util.repo_load_controller import RepoLoadController
 
-    with GithubTaskSession(logger) as session:
+    with DatabaseSession(logger) as session:
 
         controller = RepoLoadController(session)
 

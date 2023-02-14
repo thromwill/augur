@@ -41,10 +41,10 @@ from .facade01config import get_database_args_from_env
 from augur.application.db.models.augur_data import *
 #from augur.tasks.git.util.facade_worker.facade
 
-def update_repo_log(session, repos_id,status):
+def update_repo_log(augur_db_engine, util, repos_id,status):
 
 # Log a repo's fetch status
-	session.log_activity("Info",f"{status} {repos_id}")
+	util.log_activity("Info",f"{status} {repos_id}")
 	#log_message = ("INSERT INTO repos_fetch_log (repos_id,status) "
 	#	"VALUES (%s,%s)")
 	try:
@@ -52,12 +52,12 @@ def update_repo_log(session, repos_id,status):
             VALUES (:repo_id,:repo_status)""").bindparams(repo_id=repos_id,repo_status=status)
 
 		#session.insert_data(data,t_repos_fetch_log,['repos_id','status'])
-		session.execute_sql(log_message)
+		augur_db_engine.execute_sql(log_message)
 	except Exception as e:
-		session.logger.error(f"Ran into error in update_repo_log: {e}")
+		util.logger.error(f"Ran into error in update_repo_log: {e}")
 		pass
 
-def trim_commit(session, repo_id,commit):
+def trim_commit(augur_db_engine, util, repo_id,commit):
 
 # Quickly remove a given commit
 
@@ -67,11 +67,11 @@ def trim_commit(session, repo_id,commit):
 
 	 
 	 
-	session.execute_sql(remove_commit)
+	augur_db_engine.execute_sql(remove_commit)
 
-	session.log_activity('Debug',f"Trimmed commit: {commit}")
+	util.log_activity('Debug',f"Trimmed commit: {commit}")
 
-def store_working_author(session, email):
+def store_working_author(augur_db_engine, util, email):
 
 # Store the working author during affiliation discovery, in case it is
 # interrupted and needs to be trimmed.
@@ -81,11 +81,11 @@ def store_working_author(session, email):
 		WHERE setting = 'working_author'
 		""").bindparams(email=email)
 
-	session.execute_sql(store)
+	augur_db_engine.execute_sql(store)
 
-	session.log_activity('Debug',f"Stored working author: {email}")
+	util.log_activity('Debug',f"Stored working author: {email}")
 
-def trim_author(session, email):
+def trim_author(augur_db_engine, util, email):
 
 # Remove the affiliations associated with an email. Used when an analysis is
 # interrupted during affiliation layering, and the data will be corrupt.
@@ -97,16 +97,16 @@ def trim_author(session, email):
 
 	 
 	 
-	session.execute_sql(trim)
+	augur_db_engine.execute_sql(trim)
 
 	trim = s.sql.text("""UPDATE commits
 		SET cmt_committer_affiliation = NULL
 		WHERE cmt_committer_email = :email
 		""").bindparams(email=email)
 
-	session.execute_sql(trim)
+	augur_db_engine.execute_sql(trim)
 
-	store_working_author(session, 'done')
+	store_working_author(augur_db_engine, 'done')
 
-	session.log_activity('Debug',f"Trimmed working author: {email}")
+	util.log_activity('Debug',f"Trimmed working author: {email}")
 

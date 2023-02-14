@@ -17,7 +17,7 @@ DEFAULT_REPO_GROUP_ID = 1
 
 logger = logging.getLogger(__name__)
 
-def retrieve_org_repos(session, url: str) -> List[str]:
+def retrieve_org_repos(key_auth, url: str) -> List[str]:
     """Get the repos for an org.
 
     Note:
@@ -41,10 +41,10 @@ def retrieve_org_repos(session, url: str) -> List[str]:
 
     repos = []
 
-    if not session.oauths.list_of_keys:
+    if not key_auth.list_of_keys:
         return None, {"status": "No valid github api keys to retrieve data with"}
 
-    for page_data, page in GithubPaginator(url, session.oauths, logger).iter_pages():
+    for page_data, page in GithubPaginator(url, key_auth, logger).iter_pages():
 
         if page_data is None:
             break
@@ -720,7 +720,7 @@ class UserRepo(Base):
                 return False, {"status": "Invalid group name"}
 
         if not valid_repo:
-            result = Repo.is_valid_github_repo(session, url)
+            result = Repo.is_valid_github_repo(session.oauths, url)
             if not result[0]:
                 return False, {"status": result[1]["status"], "repo_url": url}
 
@@ -776,7 +776,7 @@ class UserRepo(Base):
         if group_id is None:
             return False, {"status": "Invalid group name"}
 
-        result = retrieve_org_repos(session, url)
+        result = retrieve_org_repos(session.oauths, url)
         if not result[0]:
             return False, result[1]
 

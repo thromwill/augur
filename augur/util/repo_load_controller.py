@@ -69,8 +69,11 @@ def parse_org_url(url):
 
 class RepoLoadController:
 
-    def __init__(self, gh_session):
-        self.session = gh_session
+    def __init__(self, session):
+        from augur.tasks.github.util.github_random_key_auth import GithubRandomKeyAuth
+
+        self.session = session
+        self.key_auth = GithubRandomKeyAuth(session)
 
 
     def add_cli_repo(self, repo_data: Dict[str, Any], valid_repo=False):
@@ -83,7 +86,7 @@ class RepoLoadController:
         url = repo_data["url"]
         repo_group_id = repo_data["repo_group_id"]
 
-        if valid_repo or Repo.is_valid_github_repo(self.session, url)[0]:
+        if valid_repo or Repo.is_valid_github_repo(self.key_auth, url)[0]:
 
             # if the repo doesn't exist it adds it
             # if the repo does exist it updates the repo_group_id
@@ -105,7 +108,7 @@ class RepoLoadController:
         """
 
         url = f"https://github.com/{org_name}"
-        repos = retrieve_org_repos(self.session, url)[0]
+        repos = retrieve_org_repos(self.key_auth, url)[0]
         if not repos:
             print(
                 f"No organization with name {org_name} could be found")
