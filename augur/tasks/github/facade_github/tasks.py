@@ -92,7 +92,7 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
 
         url = ("https://api.github.com/users/" + login)
 
-        user_data = request_dict_from_endpoint(key_auth, url)
+        user_data = request_dict_from_endpoint(key_auth, logger,  url)
 
         if user_data == None:
             logger.warning(
@@ -284,7 +284,7 @@ def insert_facade_contributors(repo_id):
 
 
 
-        process_commit_metadata(manifest.session, manifest.augur_db_engine, manifest.key_auth, manifest.platform_id, logger, list(new_contribs),repo_id)
+        process_commit_metadata(manifest.session, manifest.augur_db_engine, manifest.key_auth, logger, manifest.platform_id, list(new_contribs),repo_id)
 
         logger.debug("DEBUG: Got through the new_contribs")
     
@@ -329,7 +329,7 @@ def insert_facade_contributors(repo_id):
         existing_cntrb_emails = [dict(zip(row.keys(), row)) for row in result]
 
         print(existing_cntrb_emails)
-        link_commits_to_contributor(manifest.util, list(existing_cntrb_emails))
+        link_commits_to_contributor(manifest.util, logger, list(existing_cntrb_emails))
 
         logger.info("Done with inserting and updating facade contributors")
     return

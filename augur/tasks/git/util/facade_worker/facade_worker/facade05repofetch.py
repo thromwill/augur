@@ -41,7 +41,7 @@ from .facade02utilitymethods import update_repo_log, trim_commit, store_working_
 from augur.application.db.models.augur_data import *
 from augur.application.db.util import execute_session_query, convert_orm_list_to_dict_list
 
-def git_repo_initialize(augur_db_engine, util, session, repo_git,repo_group_id=None):
+def git_repo_initialize(augur_db_engine, util, session, repo_base_directory, repo_git,repo_group_id=None):
 
     # Select any new git repos so we can set up their locations and git clone
     # Select any new git repos so we can set up their locations and git clone
@@ -100,7 +100,7 @@ def git_repo_initialize(augur_db_engine, util, session, repo_git,repo_group_id=N
 
 
         # Get the full path to the directory where we'll clone the repo
-        repo_path = (f"{session.repo_base_directory}{row['repo_group_id']}/{repo_relative_path}")
+        repo_path = (f"{repo_base_directory}{row['repo_group_id']}/{repo_relative_path}")
         util.log_activity('Info',f"Repo Path from facade05, line 86: {repo_path}")
 
 
@@ -292,7 +292,7 @@ def force_repo_analysis(augur_db_engine, util,repo_git):
 
     util.log_activity('Info','Forcing repos to be analyzed (complete)')
 
-def git_repo_updates(augur_db_engine, util, sessio, repo_base_directory, repo_git):
+def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_git):
 
 # Update existing repos
 

@@ -386,8 +386,7 @@ def get_login_with_supplemental_data(augur_db_engine, logger, key_auth, commit_d
 def get_login_with_commit_hash(session, key_auth, logger, commit_data, repo_id):
 
     # Get endpoint for login from hash
-    url = create_endpoint_from_commit_sha(
-        session,commit_data['hash'], repo_id)
+    url = create_endpoint_from_commit_sha(session,logger,commit_data['hash'], repo_id)
 
     #TODO: here.
     # Send api request

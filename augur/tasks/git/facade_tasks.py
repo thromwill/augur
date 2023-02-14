@@ -359,7 +359,8 @@ def rebuild_unknown_affiliation_and_web_caches_facade_task():
     logger = logging.getLogger(rebuild_unknown_affiliation_and_web_caches_facade_task.__name__)
     
     with FacadeTaskManifest(logger) as manifest:
-        rebuild_unknown_affiliation_and_web_caches(manifest.augur_db_engine, manifest.util)
+        metadata = {"tool_source": manifest.tool_source, "tool_version": manifest.tool_version, "data_source": manifest.data_source}
+        rebuild_unknown_affiliation_and_web_caches(manifest.augur_db_engine, manifest.util, metadata)
 
 @celery.task
 def force_repo_analysis_facade_task(repo_git):
@@ -383,7 +384,7 @@ def git_repo_initialize_facade_task(repo_git):
     logger = logging.getLogger(git_repo_initialize_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        git_repo_initialize(manifest.augur_db_engine, manifest.util, manifest.session, repo_git)
+        git_repo_initialize(manifest.augur_db_engine, manifest.util, manifest.session, manifest.repo_base_directory, repo_git)
 
 @celery.task
 def check_for_repo_updates_facade_task(repo_git):
@@ -407,7 +408,7 @@ def git_repo_updates_facade_task(repo_git):
     logger = logging.getLogger(git_repo_updates_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        git_repo_updates(manifest.augur_db_engine, manifest.util, manifest.session, repo_git)
+        git_repo_updates(manifest.augur_db_engine, manifest.util, manifest.session, manifest.repo_base_directory, repo_git)
 
 
 def generate_analysis_sequence(logger,repo_git, augur_db_engine, util):

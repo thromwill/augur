@@ -698,7 +698,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         "affiliation, "
         f"a.cmt_{report_attribution}_email,"
         "a.repo_id, info.a, info.b, info.c"
-        )).bindparams(ttool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
+        )).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
     augur_db_engine.execute_sql(cache_repos_by_week)
 

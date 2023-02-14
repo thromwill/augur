@@ -68,7 +68,7 @@ def query_github_contributors(augur_db_engine, key_auth, logger, platform_id,  e
             #r = hit_api(session.oauths, cntrb_url, session.logger)
             #contributor = r.json()
 
-            contributor = request_dict_from_endpoint(key_auth, cntrb_url)
+            contributor = request_dict_from_endpoint(key_auth, logger, cntrb_url)
 
             #session.logger.info(f"Contributor: {contributor} \n")
             company = None

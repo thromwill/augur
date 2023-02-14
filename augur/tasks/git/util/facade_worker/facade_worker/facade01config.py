@@ -245,9 +245,10 @@ def get_database_args_from_env():
 
 class FacadeTaskUtility:
 
-    def __init__(self, augur_db_engine) -> None:
+    def __init__(self, augur_db_engine, logger) -> None:
         
         self.augur_db_engine = augur_db_engine
+        self.logger = logger
         self.repos_processed = 0
 
     def get_setting(self,setting):
@@ -342,7 +343,7 @@ class FacadeTaskUtility:
 
 
 
-class FacadeTaskManifest():
+class FacadeTaskManifest:
     """ORM session used in facade tasks.
 
         This class adds the various attributes needed for legacy facade as well as a modified version of the legacy FacadeConfig class.
@@ -373,7 +374,7 @@ class FacadeTaskManifest():
 
         self.augur_db_engine = AugurDbEngine(logger, engine)
         self.session = Session(engine)
-        self.utility = FacadeTaskUtility(self.augur_db_engine)
+        self.util = FacadeTaskUtility(self.augur_db_engine, logger)
         
         worker_options = AugurConfig(logger, self.session).get_section("Facade")
 
@@ -403,11 +404,19 @@ class FacadeTaskManifest():
             self.repo_base_directory = None
 
         # Determine if it's safe to start the script
-        current_status = self.get_setting('utility_status')
+        current_status = self.util.get_setting('utility_status')
 
         if len(self.repo_base_directory) == 0:
-            self.cfg.log_activity('Error','No base directory. It is unsafe to continue.')
+            self.util.log_activity('Error','No base directory. It is unsafe to continue.')
             raise Exception('Failed: No base directory')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        self.session.close()
+
+
 
    
 
