@@ -26,14 +26,14 @@ def extract_owner_and_repo_from_endpoint(key_auth, url, logger):
 
     return splits[0], splits[-1]
 
-def ping_github_for_repo_move(session,repo, logger):
+def ping_github_for_repo_move(session,repo, logger, key_auth, augur_db_engine):
 
     owner, name = get_owner_repo(repo.repo_git)
     url = f"https://api.github.com/repos/{owner}/{name}"
 
     attempts = 0
     while attempts < 10:
-        response_from_gh = hit_api(session.oauths, url, session.logger)
+        response_from_gh = hit_api(key_auth, url, logger)
 
         if response_from_gh:
             break
@@ -41,16 +41,16 @@ def ping_github_for_repo_move(session,repo, logger):
         attempts += 1
 
     if attempts == 10:
-        session.logger.warning(f"Could not check if repo moved because the api timed out 10 times. Url: {url}")
+        logger.warning(f"Could not check if repo moved because the api timed out 10 times. Url: {url}")
         return
 
     #skip if not moved
     #301 moved permanently 
     if response_from_gh.status_code != 301:
-        session.logger.info(f"Repo found at url: {url}")
+        logger.info(f"Repo found at url: {url}")
         return
     
-    owner, name = extract_owner_and_repo_from_endpoint(session, response_from_gh.headers['location'], logger)
+    owner, name = extract_owner_and_repo_from_endpoint(key_auth, response_from_gh.headers['location'], logger)
 
     current_repo_dict = repo.__dict__
     del current_repo_dict['_sa_instance_state']
@@ -72,9 +72,9 @@ def ping_github_for_repo_move(session,repo, logger):
 
     current_repo_dict.update(repo_update_dict)
 
-    result = session.insert_data(current_repo_dict, Repo, ['repo_id'])
+    result = augur_db_engine.insert_data(current_repo_dict, Repo, ['repo_id'])
 
-    session.logger.info(f"Updated repo for {owner}/{name}\n")
+    logger.info(f"Updated repo for {owner}/{name}\n")
 
     statusQuery = session.query(CollectionStatus).filter(CollectionStatus.repo_id == repo.repo_id)
 

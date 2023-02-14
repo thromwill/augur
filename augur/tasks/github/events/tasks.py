@@ -5,7 +5,7 @@ import traceback
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
-from augur.tasks.github.util.github_task_session import GithubTaskSession
+from augur.tasks.github.util.github_task_session import GithubTaskManifest
 from augur.application.db.session import DatabaseSession
 from augur.tasks.github.util.util import get_owner_repo
 from augur.tasks.util.worker_util import remove_duplicate_dicts
@@ -17,39 +17,32 @@ platform_id = 1
 @celery.task()
 def collect_events(repo_git: str):
 
-    from augur.tasks.init.celery_app import engine
-
     logger = logging.getLogger(collect_events.__name__)
     
-    with GithubTaskSession(logger, engine) as session:
+    with GithubTaskManifest(logger) as manifest:
 
-        try:
             
-            query = session.query(Repo).filter(Repo.repo_git == repo_git)
-            repo_obj = execute_session_query(query, 'one')
-            repo_id = repo_obj.repo_id
+        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        repo_obj = execute_session_query(query, 'one')
+        repo_id = repo_obj.repo_id
 
-            owner, repo = get_owner_repo(repo_git)
+        owner, repo = get_owner_repo(repo_git)
 
-            logger.info(f"Collecting Github events for {owner}/{repo}")
+        logger.info(f"Collecting Github events for {owner}/{repo}")
 
-            url = f"https://api.github.com/repos/{owner}/{repo}/issues/events"
+        url = f"https://api.github.com/repos/{owner}/{repo}/issues/events"
 
-            event_data = retrieve_all_event_data(repo_git, logger, session.oauths)
+        event_data = retrieve_all_event_data(repo_git, logger, manifest.key_auth)
 
-            if event_data:
-            
-                process_events(event_data, f"{owner}/{repo}: Event task", repo_id, logger, session)
+        if event_data:
+        
+            process_events(event_data, f"{owner}/{repo}: Event task", repo_id, logger, manifest.session, manifest.augur_db_engine)
 
-            else:
-                logger.info(f"{owner}/{repo} has no events")
-        except Exception as e:
-            logger.error(f"Could not collect events for {repo_git}\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+        else:
+            logger.info(f"{owner}/{repo} has no events")
 
 
 def retrieve_all_event_data(repo_git: str, logger, key_auth):
-
-    from augur.tasks.init.celery_app import engine
 
     owner, repo = get_owner_repo(repo_git)
 
@@ -79,9 +72,7 @@ def retrieve_all_event_data(repo_git: str, logger, key_auth):
 
     return all_data        
 
-def process_events(events, task_name, repo_id, logger, session):
-
-    from augur.tasks.init.celery_app import engine
+def process_events(events, task_name, repo_id, logger, session, augur_db_engine):
     
     tool_source = "Github events task"
     tool_version = "2.0"
@@ -150,7 +141,7 @@ def process_events(events, task_name, repo_id, logger, session):
     # remove contributors that were found in the data more than once
     contributors = remove_duplicate_dicts(contributors)
 
-    session.insert_data(contributors, Contributor, ["cntrb_id"])
+    augur_db_engine.insert_data(contributors, Contributor, ["cntrb_id"])
 
     issue_events_len = len(issue_event_dicts)
     pr_events_len = len(pr_event_dicts)
@@ -164,10 +155,10 @@ def process_events(events, task_name, repo_id, logger, session):
 
     # TODO: Could replace this with "id" but it isn't stored on the table for some reason
     pr_event_natural_keys = ["node_id"]
-    session.insert_data(pr_event_dicts, PullRequestEvent, pr_event_natural_keys)
+    augur_db_engine.insert_data(pr_event_dicts, PullRequestEvent, pr_event_natural_keys)
 
     issue_event_natural_keys = ["issue_id", "issue_event_src_id"]
-    session.insert_data(issue_event_dicts, IssueEvent, issue_event_natural_keys)
+    augur_db_engine.insert_data(issue_event_dicts, IssueEvent, issue_event_natural_keys)
 
 
 # TODO: Should we skip an event if there is no contributor to resolve it o

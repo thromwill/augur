@@ -6,7 +6,7 @@ import traceback
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
-from augur.tasks.github.util.github_task_session import GithubTaskSession
+from augur.tasks.github.util.github_task_session import GithubTaskManifest
 from augur.application.db.session import DatabaseSession
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.tasks.github.util.util import get_owner_repo
@@ -21,28 +21,22 @@ platform_id = 1
 @celery.task()
 def collect_github_messages(repo_git: str) -> None:
 
-    from augur.tasks.init.celery_app import engine
-
     logger = logging.getLogger(collect_github_messages.__name__)
 
-    with GithubTaskSession(logger, engine) as session:
+    with GithubTaskManifest(logger) as manifest:
+                    
+        repo_id = manifest.session.query(Repo).filter(
+            Repo.repo_git == repo_git).one().repo_id
+
+        owner, repo = get_owner_repo(repo_git)
+        message_data = retrieve_all_pr_and_issue_messages(repo_git, logger, manifest.key_auth)
+
+        if message_data:
         
-        try:
-            
-            repo_id = session.query(Repo).filter(
-                Repo.repo_git == repo_git).one().repo_id
+            process_messages(message_data, f"{owner}/{repo}: Message task", repo_id, logger, manifest.session, manifest.augur_db_engine)
 
-            owner, repo = get_owner_repo(repo_git)
-            message_data = retrieve_all_pr_and_issue_messages(repo_git, logger, session.oauths)
-
-            if message_data:
-            
-                process_messages(message_data, f"{owner}/{repo}: Message task", repo_id, logger, session)
-
-            else:
-                logger.info(f"{owner}/{repo} has no messages")
-        except Exception as e:
-            logger.error(f"Could not collect github messages for {repo_git}\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
+        else:
+            logger.info(f"{owner}/{repo} has no messages")
 
 
 
@@ -85,7 +79,7 @@ def retrieve_all_pr_and_issue_messages(repo_git: str, logger, key_auth) -> None:
     return all_data
     
 
-def process_messages(messages, task_name, repo_id, logger, session):
+def process_messages(messages, task_name, repo_id, logger, session, augur_db_engine):
 
     tool_source = "Pr comment task"
     tool_version = "2.0"
@@ -174,13 +168,13 @@ def process_messages(messages, task_name, repo_id, logger, session):
 
     logger.info(f"{task_name}: Inserting {len(contributors)} contributors")
 
-    session.insert_data(contributors, Contributor, ["cntrb_id"])
+    augur_db_engine.insert_data(contributors, Contributor, ["cntrb_id"])
 
     logger.info(f"{task_name}: Inserting {len(message_dicts)} messages")
     message_natural_keys = ["platform_msg_id"]
     message_return_columns = ["msg_id", "platform_msg_id"]
     message_string_fields = ["msg_text"]
-    message_return_data = session.insert_data(message_dicts, Message, message_natural_keys, 
+    message_return_data = augur_db_engine.insert_data(message_dicts, Message, message_natural_keys, 
                                                 return_columns=message_return_columns, string_fields=message_string_fields)
 
     pr_message_ref_dicts = []
@@ -208,10 +202,10 @@ def process_messages(messages, task_name, repo_id, logger, session):
             pr_message_ref_dicts.append(message_ref_data)
 
     pr_message_ref_natural_keys = ["pull_request_id", "pr_message_ref_src_comment_id"]
-    session.insert_data(pr_message_ref_dicts, PullRequestMessageRef, pr_message_ref_natural_keys)
+    augur_db_engine.insert_data(pr_message_ref_dicts, PullRequestMessageRef, pr_message_ref_natural_keys)
 
     issue_message_ref_natural_keys = ["issue_id", "issue_msg_ref_src_comment_id"]
-    session.insert_data(issue_message_ref_dicts, IssueMessageRef, issue_message_ref_natural_keys)
+    augur_db_engine.insert_data(issue_message_ref_dicts, IssueMessageRef, issue_message_ref_natural_keys)
 
     logger.info(f"{task_name}: Inserted {len(message_dicts)} messages. {len(issue_message_ref_dicts)} from issues and {len(pr_message_ref_dicts)} from prs")
 

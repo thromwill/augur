@@ -131,7 +131,7 @@ def extract_data_from_pr_list(pull_requests: List[dict],
     return pr_dicts, pr_mapping_data, pr_numbers, contributors
 
 
-def insert_pr_contributors(contributors: List[dict], session: DatabaseSession, task_name: str) -> None:
+def insert_pr_contributors(contributors: List[dict], augur_db_engine, task_name: str, logger) -> None:
     """Insert pr contributors
     
     Args:
@@ -144,11 +144,11 @@ def insert_pr_contributors(contributors: List[dict], session: DatabaseSession, t
     contributors = remove_duplicate_dicts(contributors)
 
     # insert contributors from these prs
-    session.logger.info(f"{task_name}: Inserting {len(contributors)} contributors")
-    session.insert_data(contributors, Contributor, ["cntrb_id"])
+    logger.info(f"{task_name}: Inserting {len(contributors)} contributors")
+    augur_db_engine.insert_data(contributors, Contributor, ["cntrb_id"])
 
 
-def insert_prs(pr_dicts: List[dict], session: DatabaseSession, task_name: str) -> Optional[List[dict]]:
+def insert_prs(pr_dicts: List[dict], augur_db_engine, task_name: str, logger) -> Optional[List[dict]]:
     """Insert pull requests
     
     Args:
@@ -161,10 +161,10 @@ def insert_prs(pr_dicts: List[dict], session: DatabaseSession, task_name: str) -
             So we can determine what labels, assigness, and other data belong to each pr
     """
 
-    session.logger.info(f"{task_name}: Inserting prs of length: {len(pr_dicts)}")
+    logger.info(f"{task_name}: Inserting prs of length: {len(pr_dicts)}")
     pr_natural_keys = ["pr_url"]
     pr_return_columns = ["pull_request_id", "pr_url"]
-    pr_return_data = session.insert_data(pr_dicts, PullRequest, pr_natural_keys, return_columns=pr_return_columns)
+    pr_return_data = augur_db_engine.insert_data(pr_dicts, PullRequest, pr_natural_keys, return_columns=pr_return_columns)
 
     return pr_return_data
 
@@ -213,7 +213,7 @@ def map_other_pr_data_to_pr(
     return pr_label_dicts, pr_assignee_dicts, pr_reviewer_dicts, pr_metadata_dicts 
 
 
-def insert_pr_labels(labels: List[dict], logger: logging.Logger, session) -> None:
+def insert_pr_labels(labels: List[dict], logger: logging.Logger, augur_db_engine) -> None:
     """Insert pull request labels
 
     Note:
@@ -225,10 +225,10 @@ def insert_pr_labels(labels: List[dict], logger: logging.Logger, session) -> Non
     """
     # we are using pr_src_id and pull_request_id to determine if the label is already in the database.
     pr_label_natural_keys = ['pr_src_id', 'pull_request_id']
-    session.insert_data(labels, PullRequestLabel, pr_label_natural_keys)
+    augur_db_engine.insert_data(labels, PullRequestLabel, pr_label_natural_keys)
 
 
-def insert_pr_assignees(assignees: List[dict], logger: logging.Logger, session) -> None:
+def insert_pr_assignees(assignees: List[dict], logger: logging.Logger, augur_db_engine) -> None:
     """Insert pull request assignees
 
     Note:
@@ -240,10 +240,10 @@ def insert_pr_assignees(assignees: List[dict], logger: logging.Logger, session) 
     """
     # we are using pr_assignee_src_id and pull_request_id to determine if the label is already in the database.
     pr_assignee_natural_keys = ['pr_assignee_src_id', 'pull_request_id']
-    session.insert_data(assignees, PullRequestAssignee, pr_assignee_natural_keys)
+    augur_db_engine.insert_data(assignees, PullRequestAssignee, pr_assignee_natural_keys)
 
 
-def insert_pr_reviewers(reviewers: List[dict], logger: logging.Logger, session) -> None:
+def insert_pr_reviewers(reviewers: List[dict], logger: logging.Logger, augur_db_engine) -> None:
     """Insert pull request reviewers
 
     Note:
@@ -255,10 +255,10 @@ def insert_pr_reviewers(reviewers: List[dict], logger: logging.Logger, session) 
     """
     # we are using pr_src_id and pull_request_id to determine if the label is already in the database.
     pr_reviewer_natural_keys = ["pull_request_id", "pr_reviewer_src_id"]
-    session.insert_data(reviewers, PullRequestReviewer, pr_reviewer_natural_keys)
+    augur_db_engine.insert_data(reviewers, PullRequestReviewer, pr_reviewer_natural_keys)
 
 
-def insert_pr_metadata(metadata: List[dict], logger: logging.Logger, session) -> None:
+def insert_pr_metadata(metadata: List[dict], logger: logging.Logger, augur_db_engine) -> None:
     """Insert pull request metadata
 
     Note:
@@ -271,7 +271,7 @@ def insert_pr_metadata(metadata: List[dict], logger: logging.Logger, session) ->
     # inserting pr metadata
     # we are using pull_request_id, pr_head_or_base, and pr_sha to determine if the label is already in the database.
     pr_metadata_natural_keys = ['pull_request_id', 'pr_head_or_base', 'pr_sha']
-    session.insert_data(metadata, PullRequestMeta, pr_metadata_natural_keys)
+    augur_db_engine.insert_data(metadata, PullRequestMeta, pr_metadata_natural_keys)
 
 
 

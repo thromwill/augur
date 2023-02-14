@@ -20,10 +20,10 @@ class GithubApiKeyHandler():
         key: (List[str]): List of keys retrieve from database or cache
     """
 
-    def __init__(self, session: DatabaseSession):
+    def __init__(self, session, logger):
 
         self.session = session
-        self.logger = session.logger
+        self.logger = logger
         self.config = AugurConfig(self.logger, session)
 
         self.oauth_redis_key = "oauth_keys_list"
