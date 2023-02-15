@@ -4,15 +4,14 @@ import time
 from typing import Optional, List
 
 from augur.tasks.util.redis_list import RedisList
-from augur.application.db.session import DatabaseSession
+
 from augur.application.config import AugurConfig
-from augur.tasks.init.celery_app import engine
 
 class GithubApiKeyHandler():
     """Handles Github API key retrieval from the database and redis
 
     Attributes:
-        session (DatabaseSession): Database connection
+        session (sqlalchemy Session): Database connection
         logger (logging.Logger): Handles all logs
         oauth_redis_key (str): The key where the github api keys are cached in redis
         redis_key_list (RedisList): Acts like a python list, and interacts directly with the redis cache

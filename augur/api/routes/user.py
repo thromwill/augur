@@ -17,7 +17,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.sql import text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
-from augur.application.db.session import DatabaseSession
+
 from augur.util.repo_load_controller import RepoLoadController
 from augur.api.util import get_bearer_token
 from augur.api.util import get_client_token
@@ -42,12 +42,12 @@ def api_key_required(fun):
         # If valid:
         if client_token:
 
-            session = Session()
-            try:
-                kwargs["application"] = session.query(ClientApplication).filter(ClientApplication.api_key == client_token).one()
-                return fun(*args, **kwargs)
-            except NoResultFound:
-                pass
+            with Session() as session:
+                try:
+                    kwargs["application"] = session.query(ClientApplication).filter(ClientApplication.api_key == client_token).one()
+                    return fun(*args, **kwargs)
+                except NoResultFound:
+                    pass
 
         return {"status": "Unauthorized client"}
     
@@ -83,19 +83,19 @@ def validate_user():
         # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
         return jsonify({"status": "Missing argument"}), 400
 
-    session = Session()
-    user = session.query(User).filter(User.login_name == username).first()
-    session.close()
+    with Session() as session:
+        user = session.query(User).filter(User.login_name == username).first()
+        session.close()
 
-    if user is None:
-        return jsonify({"status": "Invalid username"})
+        if user is None:
+            return jsonify({"status": "Invalid username"})
 
-    checkPassword = check_password_hash(user.login_hashword, password)
-    if checkPassword == False:
-        return jsonify({"status": "Invalid password"})
+        checkPassword = check_password_hash(user.login_hashword, password)
+        if checkPassword == False:
+            return jsonify({"status": "Invalid password"})
 
 
-    login_user(user)
+        login_user(user)
 
     return jsonify({"status": "Validated"})
 
@@ -137,7 +137,7 @@ def generate_session(application):
     if not username:
         return jsonify({"status": "Invalid authorization code"})
 
-    with DatabaseSession(logger) as session:
+    with Session() as session:
 
         user = User.get_user(session, username)
         if not user:
@@ -171,7 +171,7 @@ def refresh_session(application):
     if request.args.get("grant_type") != "refresh_token":
         return jsonify({"status": "Invalid grant type"})
 
-    with DatabaseSession(logger) as session:
+    with Session() as session:
 
         refresh_token = session.query(RefreshToken).filter(RefreshToken.id == refresh_token_str).first()
         if not refresh_token:
@@ -244,32 +244,30 @@ def update_user():
     new_login_name = request.args.get("new_username")
     new_password = request.args.get("new_password")
 
-    if email is not None:
-        existing_user = session.query(User).filter(User.email == email).one()
-        if existing_user is not None:
-            session = Session()
-            return jsonify({"status": "Already an account with this email"})
+    with Session() as session:
 
-        current_user.email = email
-        session.commit()
-        session = Session()
-        return jsonify({"status": "Email Updated"})
+        if email is not None:
+            existing_user = session.query(User).filter(User.email == email).one()
+            if existing_user is not None:
+                return jsonify({"status": "Already an account with this email"})
 
-    if new_password is not None:
-        current_user.login_hashword = generate_password_hash(new_password)
-        session.commit()
-        session = Session()
-        return jsonify({"status": "Password Updated"})
+            current_user.email = email
+            session.commit()
+            return jsonify({"status": "Email Updated"})
 
-    if new_login_name is not None:
-        existing_user = session.query(User).filter(User.login_name == new_login_name).one()
-        if existing_user is not None:
-            return jsonify({"status": "Username already taken"})
+        if new_password is not None:
+            current_user.login_hashword = generate_password_hash(new_password)
+            session.commit()
+            return jsonify({"status": "Password Updated"})
 
-        current_user.login_name = new_login_name
-        session.commit()
-        session = Session()
-        return jsonify({"status": "Username Updated"})
+        if new_login_name is not None:
+            existing_user = session.query(User).filter(User.login_name == new_login_name).one()
+            if existing_user is not None:
+                return jsonify({"status": "Username already taken"})
+
+            current_user.login_name = new_login_name
+            session.commit()
+            return jsonify({"status": "Username Updated"})
 
     return jsonify({"status": "Missing argument"}), 400
 

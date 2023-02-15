@@ -150,7 +150,7 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
                 #"data_source": interface.data_source
             }
 
-            #session.logger.info(f"{cntrb}")
+            #logger.info(f"{cntrb}")
 
         except Exception as e:
             logger.info(f"Error when trying to create cntrb: {e}")

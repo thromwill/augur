@@ -1,4 +1,4 @@
-from augur.application.db.session import DatabaseSession
+
 from augur.application.db.models import Repo 
 from augur.application.db.util import execute_session_query
 from celery import group, chain, chord, signature

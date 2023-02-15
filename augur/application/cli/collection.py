@@ -22,11 +22,12 @@ from augur import instance_id
 from augur.tasks.start_tasks import augur_collection_monitor, CollectionState
 from augur.tasks.init.redis_connection import redis_connection 
 from augur.application.db.models import Repo, CollectionStatus
-from augur.application.db.session import DatabaseSession
+
 from augur.application.db.util import execute_session_query
 
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
+from augur.application.db.engine import get_augur_db_session
 from augur.application.cli import test_connection, test_db_connection 
 from augur.tasks.github.util.github_random_key_auth import GithubRandomKeyAuth
 from augur.tasks.github.util.github_paginator import hit_api
@@ -36,7 +37,8 @@ import sqlalchemy as s
 
 logger = AugurLogger("augur", reset_logfiles=True).get_logger()
 
-def get_page_count()
+def get_page_count():
+    pass
 
 
 def check_collection(owner, repo, key_manager, session):
@@ -71,7 +73,7 @@ def cli():
 @test_db_connection
 def status(failed):
 
-    with DatabaseSession(logger) as session:
+    with get_augur_db_session() as session:
 
         key_manager = GithubRandomKeyAuth(session)
 

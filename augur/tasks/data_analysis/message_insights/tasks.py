@@ -12,7 +12,7 @@ from augur.tasks.data_analysis.message_insights.message_novelty import novelty_a
 from augur.tasks.data_analysis.message_insights.message_sentiment import get_senti_score
 
 from augur.tasks.init.celery_app import celery_app as celery
-from augur.application.db.session import DatabaseSession
+
 from augur.application.config import AugurConfig
 from augur.application.db.models import Repo, MessageAnalysis, MessageAnalysisSummary
 from augur.application.db.util import execute_session_query
@@ -27,7 +27,8 @@ def message_insight_task():
     logger = logging.getLogger(message_insight_task.__name__)
     from augur.tasks.init.celery_app import engine
 
-    with DatabaseSession(logger, engine) as session:
+
+    with s.orm.Session(engine) as session:
         query = session.query(Repo)
         repos = execute_session_query(query, 'all')
     

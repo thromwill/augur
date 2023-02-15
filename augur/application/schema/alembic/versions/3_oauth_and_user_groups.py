@@ -9,8 +9,9 @@ import logging
 
 from alembic import op
 import sqlalchemy as sa
-from augur.application.db.session import DatabaseSession
+
 from augur.application.db.models.augur_operations import UserGroup, UserRepo
+from augur.application.db.engine import get_augur_db_session
 
 CLI_USER_ID = 1
 
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def upgrade():
 
-    with DatabaseSession(logger) as session:
+    with get_augur_db_session() as session:
 
         create_user_groups_table = """    
             CREATE TABLE "augur_operations"."user_groups" (
@@ -168,7 +169,7 @@ def downgrade():
 
     user_group_ids = {}
     group_repo_ids = {}
-    with DatabaseSession(logger) as session:
+    with get_augur_db_session() as session:
         user_id_query = sa.sql.text("""SELECT * FROM user_groups;""")
         user_groups = session.fetchall_data_from_sql_text(user_id_query)
         for row in user_groups:

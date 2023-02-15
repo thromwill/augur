@@ -13,8 +13,8 @@ import sqlalchemy as s
 from augur.application.config import get_development_flag
 from augur.application.db.models import Config
 from augur.application.config import AugurConfig
-from augur.application.db.session import DatabaseSession
-from ..server import app
+
+from ..server import app, engine
 
 logger = logging.getLogger(__name__)
 development = get_development_flag()
@@ -34,7 +34,7 @@ def get_config():
     if not development and not request.is_secure:
         return generate_upgrade_request()
 
-    with DatabaseSession(logger) as session:
+    with s.orm.Session(engine) as session:
         
         config_dict = AugurConfig(logger, session).config.load_config()
 
@@ -48,7 +48,7 @@ def update_config():
 
     update_dict = request.get_json()
 
-    with DatabaseSession(logger) as session:
+    with s.orm.Session(engine) as session:
 
         for section, data in update_dict.items():
 

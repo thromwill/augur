@@ -19,8 +19,9 @@ import re
 
 from augur.application.cli import test_connection, test_db_connection 
 
-from augur.application.db.session import DatabaseSession
+
 from augur.application.logs import AugurLogger
+from augur.application.db.engine import get_augur_db_session
 from augur.application.db.engine import DatabaseEngine
 
 logger = logging.getLogger(__name__)
@@ -42,10 +43,10 @@ def add_repos(filename):
     NOTE: The Group ID must already exist in the REPO_Groups Table.
 
     If you want to add an entire GitHub organization, refer to the command: augur db add-github-org"""   
-    from augur.application.db.session import DatabaseSession
+    
     from augur.util.repo_load_controller import RepoLoadController
 
-    with DatabaseSession(logger) as session:
+    with get_augur_db_session() as session:
 
         controller = RepoLoadController(session)
 
@@ -143,10 +144,10 @@ def add_github_org(organization_name):
     """
     Create new repo groups in Augur's database
     """
-    from augur.application.db.session import DatabaseSession
+    
     from augur.util.repo_load_controller import RepoLoadController
 
-    with DatabaseSession(logger) as session:
+    with get_augur_db_session() as session:
 
         controller = RepoLoadController(session)
 

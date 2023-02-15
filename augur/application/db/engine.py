@@ -8,6 +8,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.pool import NullPool
 from augur.application.db.util import catch_operational_error
+from contextlib import contextmanager
+
 
 
 def get_database_string() -> str:
@@ -108,6 +110,20 @@ class DatabaseEngine():
 
         return engine
 
+
+
+@contextmanager
+def get_augur_db_session():
+    from sqlalchemy.orm import Session
+
+    engine = DatabaseEngine(pool_size=1, max_overflow=0).engine
+    session = Session(engine)
+
+    try:
+        yield session
+    finally:
+        # Code to release resource, e.g.:
+        session.close()
 
 class EngineConnection():
 

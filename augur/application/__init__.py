@@ -2,10 +2,10 @@ def requires_db_session(logger):
     def inner_decorator(fun):
         def wrapper(*args, **kwargs):
 
-            from augur.application.db.session import DatabaseSession
+            from augur.application.db.engine import get_augur_db_session
 
             # create DB session
-            with DatabaseSession(logger) as session:
+            with get_augur_db_session() as session:
 
                 return fun(session, *args, **kwargs)
         

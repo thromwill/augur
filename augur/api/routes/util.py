@@ -6,7 +6,7 @@ import json
 from flask import Response
 import logging
 
-from augur.application.db.session import DatabaseSession
+
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
 
@@ -219,7 +219,7 @@ def get_issues(repo_group_id, repo_id=None):
 @app.route('/{}/api-port'.format(AUGUR_API_VERSION))
 def api_port():
 
-    with DatabaseSession(logger) as session:
+    with s.orm.Session(engine) as session:
 
         response = {'port': AugurConfig(logger, session).get_value('Server', 'port')}
         return Response(response=json.dumps(response),

@@ -5,14 +5,14 @@ import os
 from pathlib import Path
 import shutil
 
-from augur.application.db.session import DatabaseSession
+
+from augur.application.db.engine import get_augur_db_session
 from augur.application.config import AugurConfig
 
 logger = logging.getLogger(__name__)
-with DatabaseSession(logger) as session:
+with get_augur_db_session() as session:
 
     augur_config = AugurConfig(logger, session)
-    
         
     # ROOT_AUGUR_DIRECTORY = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 

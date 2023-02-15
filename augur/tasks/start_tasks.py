@@ -29,7 +29,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 from celery.result import allow_join_result
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
-from augur.application.db.session import DatabaseSession
+
 from augur.application.db.util import execute_session_query
 from logging import Logger
 from enum import Enum
@@ -61,12 +61,13 @@ def collection_task_wrapper(self,*args,**kwargs):
 def core_task_success(repo_git):
 
     from augur.tasks.init.celery_app import engine
+    from sqlalchemy.orm import Session
 
     logger = logging.getLogger(core_task_success.__name__)
 
     logger.info(f"Repo '{repo_git}' succeeded through core collection")
 
-    with DatabaseSession(logger, engine) as session:
+    with Session(engine) as session:
 
         repo = Repo.get_by_repo_git(session, repo_git)
         if not repo:
@@ -87,12 +88,13 @@ def core_task_success(repo_git):
 def secondary_task_success(repo_git):
 
     from augur.tasks.init.celery_app import engine
+    from sqlalchemy.orm import Session
 
     logger = logging.getLogger(secondary_task_success.__name__)
 
     logger.info(f"Repo '{repo_git}' succeeded through secondary collection")
 
-    with DatabaseSession(logger, engine) as session:
+    with Session(engine) as session:
 
         repo = Repo.get_by_repo_git(session, repo_git)
         if not repo:
@@ -110,10 +112,11 @@ def secondary_task_success(repo_git):
 def task_failed(request,exc,traceback):
 
     from augur.tasks.init.celery_app import engine
+    from sqlalchemy.orm import Session
 
     logger = logging.getLogger(task_failed.__name__)
     
-    with DatabaseSession(logger,engine) as session:
+    with Session(engine) as session:
         query = session.query(CollectionStatus).filter(CollectionStatus.core_task_id == request.id)
 
         collectionRecord = execute_session_query(query,'one')
@@ -134,7 +137,7 @@ def task_failed(request,exc,traceback):
             session.commit()
 
             # log traceback to error file
-            session.logger.error(f"Task {request.id} raised exception: {exc}\n{traceback}")
+            logger.error(f"Task {request.id} raised exception: {exc}\n{traceback}")
     
     
 
@@ -268,6 +271,7 @@ class AugurTaskRoutine:
 def non_repo_domain_tasks():
 
     from augur.tasks.init.celery_app import engine
+    from sqlalchemy.orm import Session
 
 
     logger = logging.getLogger(non_repo_domain_tasks.__name__)
@@ -275,7 +279,7 @@ def non_repo_domain_tasks():
     logger.info("Executing non-repo domain tasks")
 
     enabled_phase_names = []
-    with DatabaseSession(logger, engine) as session:
+    with Session(engine) as session:
 
         max_repo_count = 500
         days = 30
@@ -306,6 +310,7 @@ def non_repo_domain_tasks():
 def augur_collection_monitor():     
 
     from augur.tasks.init.celery_app import engine
+    from sqlalchemy.orm import Session
 
     logger = logging.getLogger(augur_collection_monitor.__name__)
 
@@ -314,7 +319,7 @@ def augur_collection_monitor():
     coreCollection = [prelim_phase, primary_repo_collect_phase]
 
     #Get phase options from the config
-    with DatabaseSession(logger, engine) as session:
+    with Session(engine) as session:
 
         max_repo_count = 50
         days = 30

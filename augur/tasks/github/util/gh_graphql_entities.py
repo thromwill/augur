@@ -385,12 +385,12 @@ class GraphQlPageCollection(collections.abc.Sequence):
 
 #use httpx and pass random_key_auth
 class GitHubRepo():
-    def __init__(self, session, owner, repo):
+    def __init__(self, logger, key_auth, owner, repo):
 
-        self.keyAuth = session.oauths
+        self.keyAuth = key_auth
         self.url = "https://api.github.com/graphql"
 
-        self.logger = session.logger
+        self.logger = logger
 
         self.owner = owner
         self.repo = repo
@@ -518,12 +518,12 @@ class GitHubRepo():
 
 
 class PullRequest():
-    def __init__(self, session, owner, repo, number):
+    def __init__(self, logger, key_auth, owner, repo, number):
 
-        self.keyAuth = session.oauths
+        self.keyAuth = key_auth
         self.url = "https://api.github.com/graphql"
 
-        self.logger = session.logger
+        self.logger = logger
 
         self.owner = owner
         self.repo = repo

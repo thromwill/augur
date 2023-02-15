@@ -14,7 +14,6 @@ from sklearn.ensemble import IsolationForest
 import warnings
 
 from augur.tasks.init.celery_app import celery_app as celery
-from augur.application.db.session import DatabaseSession
 from augur.application.config import AugurConfig
 from augur.application.db.models import Repo, ChaossMetricStatus, RepoInsight, RepoInsightsRecord
 from augur.application.db.util import execute_session_query
@@ -28,7 +27,7 @@ def insight_task():
     logger = logging.getLogger(insight_task.__name__)
     from augur.tasks.init.celery_app import engine
 
-    with DatabaseSession(logger, engine) as session:
+    with s.orm.Session(engine) as session:
         query = session.query(Repo)
         repos = execute_session_query(query, 'all')
     
@@ -152,7 +151,7 @@ def insight_model(repo_git: str,logger,engine,session) -> None:
                             max_features=1.0, bootstrap=False, n_jobs=-1, random_state=32, verbose=0)
     model.fit(df[to_model_columns])
 
-    def classify_anomalies(df, metric):
+    def classify_anomalies(df, metric, session):
         df = df.sort_values(by='date_col', ascending=False)
 
         # Shift metric values by one date to find the percentage chage between current and previous data point
@@ -186,7 +185,7 @@ def insight_model(repo_git: str,logger,engine,session) -> None:
         # Get the indexes of outliers in order to compare the metrics with use case anomalies if required
         outliers = anomaly_df.loc[anomaly_df['anomaly_class'] == -1]
         outlier_index = list(outliers.index)
-        anomaly_df = classify_anomalies(anomaly_df, metric)
+        anomaly_df = classify_anomalies(anomaly_df, metric, session)
 
         # Filter the anomaly_df by days we want to detect anomalies
         begin_detection_date = datetime.datetime.now() - datetime.timedelta(days=anomaly_days)
@@ -252,13 +251,12 @@ def insight_model(repo_git: str,logger,engine,session) -> None:
                     "data_source": data_source
                 }
 
-                with DatabaseSession(logger, engine) as session:
-                    repo_insight_record_obj = RepoInsightsRecord(**record)
-                    session.add(repo_insight_record_obj)
-                    session.commit()
+                repo_insight_record_obj = RepoInsightsRecord(**record)
+                session.add(repo_insight_record_obj)
+                session.commit()
 
-                    logger.info("Primary key inserted into the repo_insights_records table: {}\n".format(
-                        repo_insight_record_obj.ri_id))
+                logger.info("Primary key inserted into the repo_insights_records table: {}\n".format(
+                    repo_insight_record_obj.ri_id))
 
                 # Send insight to Jonah for slack bot
                 send_insight(record, abs(next_recent_anomaly.iloc[0][metric] - mean), logger)
@@ -297,10 +295,9 @@ def insight_model(repo_git: str,logger,engine,session) -> None:
                     "data_source": data_source
                 }
 
-                with DatabaseSession(logger, engine) as session:
-                    repo_insight_obj = RepoInsight(**data_point)
-                    session.add(repo_insight_obj)
-                    session.commit()
+                repo_insight_obj = RepoInsight(**data_point)
+                session.add(repo_insight_obj)
+                session.commit()
 
                 logger.info("Primary key inserted into the repo_insights_records table: {}\n".format(repo_insight_obj.ri_id))
 

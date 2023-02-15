@@ -45,7 +45,7 @@ def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_g
 # Clean up any git repos that are pending deletion
 
 	util.update_status('Purging deleted repos')
-	#session.logger.info("Processing deletions")
+	#logger.info("Processing deletions")
 	util.log_activity('Info','Processing deletions')
 
 
@@ -107,7 +107,7 @@ def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_g
 		augur_db_engine.execute_sql(query)
 
 		#log_activity('Verbose','Deleted repo %s' % row[0])
-		#session.logger.debug(f"Deleted repo {row.repo_id}")
+		#logger.debug(f"Deleted repo {row.repo_id}")
 		util.log_activity('Verbose',f"Deleted repo {row.repo_id}")
 		cleanup = '%s/%s%s' % (row.repo_group_id,row.repo_path,row.repo_name)
 
@@ -135,7 +135,7 @@ def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_g
 			cmd = "rmdir %s%s" % (repo_base_directory,cleanup)
 			subprocess.Popen([cmd],shell=True).wait()
 			#log_activity('Verbose','Attempted %s' % cmd)
-			#session.logger.debug(f"Attempted {cmd}")
+			#logger.debug(f"Attempted {cmd}")
 			util.log_activity('Verbose',f"Attempted {cmd}")
 
 		#update_repo_log(row[0],'Deleted')

@@ -7,7 +7,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.data_parse import *
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
 from augur.tasks.github.util.github_task_session import GithubTaskManifest
-from augur.application.db.session import DatabaseSession
+
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.tasks.github.util.util import add_key_value_pair_to_dicts, get_owner_repo
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, PullRequestMessageRef, Contributor, Repo
@@ -298,7 +298,7 @@ def pull_request_review_comments(repo_git: str) -> None:
 
 # do this task after others because we need to add the multi threading like we did it before
 @celery.task
-def pull_request_reviews(repo_git: str, pr_number_list: [int]) -> None:
+def pull_request_reviews(repo_git: str, pr_number_list) -> None:
 
     from augur.tasks.init.celery_app import engine
 

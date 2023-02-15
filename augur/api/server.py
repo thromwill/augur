@@ -14,6 +14,7 @@ import importlib
 from typing import Optional, List, Any, Tuple
 
 from pathlib import Path
+from sqlalchemy.orm import Session
 
 from flask import Flask, request, Response, redirect
 from flask_cors import CORS
@@ -21,10 +22,9 @@ import pandas as pd
 from beaker.util import parse_cache_config_options
 from beaker.cache import CacheManager, Cache
 
-
-from augur.application.db.session import DatabaseSession
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
+from augur.application.db.engine import DatabaseEngine
 from metadata import __version__ as augur_code_version
 
 # from augur.api.routes import AUGUR_API_VERSION
@@ -319,12 +319,11 @@ def get_server_cache(config, cache_manager) -> Cache:
     return server_cache
 
 
-
-
 logger = AugurLogger("server").get_logger()
-db_session = DatabaseSession(logger)
+engine = DatabaseEngine().engine
+db_session = Session(engine)
 augur_config = AugurConfig(logger, db_session)
-engine = db_session.engine
+
 
 template_dir = str(Path(__file__).parent.parent / "templates")
 static_dir = str(Path(__file__).parent.parent / "static")

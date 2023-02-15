@@ -65,12 +65,12 @@ def query_github_contributors(augur_db_engine, key_auth, logger, platform_id,  e
 
             
             logger.info("Hitting endpoint: " + cntrb_url + " ...\n")
-            #r = hit_api(session.oauths, cntrb_url, session.logger)
+            #r = hit_api(session.oauths, cntrb_url, logger)
             #contributor = r.json()
 
             contributor = request_dict_from_endpoint(key_auth, logger, cntrb_url)
 
-            #session.logger.info(f"Contributor: {contributor} \n")
+            #logger.info(f"Contributor: {contributor} \n")
             company = None
             location = None
             email = None
@@ -126,7 +126,7 @@ def query_github_contributors(augur_db_engine, key_auth, logger, platform_id,  e
 
             cntrb_natural_keys = ['cntrb_id']
             #insert cntrb to table.
-            #session.logger.info(f"Contributor:  {cntrb}  \n")
+            #logger.info(f"Contributor:  {cntrb}  \n")
             augur_db_engine.insert_data(cntrb,Contributor,cntrb_natural_keys)
             
         except Exception as e:

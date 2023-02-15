@@ -570,7 +570,6 @@ def generate_non_repo_domain_facade_tasks(logger):
         if nuke_stored_affiliations:
             facade_sequence.append(nuke_affiliations_facade_task.si().on_error(facade_error_handler.s()))#nuke_affiliations(session.cfg)
 
-        #session.logger.info(session.cfg)
         if not limited_run or (limited_run and fix_affiliations):
             facade_sequence.append(fill_empty_affiliations_facade_task.si().on_error(facade_error_handler.s()))#fill_empty_affiliations(session)
 
