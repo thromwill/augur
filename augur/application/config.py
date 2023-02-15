@@ -8,10 +8,10 @@ from augur.application.db.util import execute_session_query
 def get_development_flag_from_config():
     
     from logging import getLogger
-    from augur.application.db.engine import get_augur_db_session
+    from augur.application.db.engine import get_db_session
 
     logger = getLogger(__name__)
-    with get_augur_db_session() as session:
+    with get_db_session() as session:
 
         config = AugurConfig(logger, session)
 

@@ -13,7 +13,7 @@ from typing import Optional, List, Union
 from psycopg2.errors import DeadlockDetected
 
 # from augur.tasks.util.random_key_auth import RandomKeyAuth
-from augur.application.db.engine import EngineConnection
+# from augur.application.db.engine import EngineConnection
 from augur.tasks.util.worker_util import remove_duplicate_dicts, remove_duplicates_by_uniques
 
 

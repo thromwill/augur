@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, event
 
 from augur.application.logs import TaskLogConfig
 
-from augur.application.db.engine import DatabaseEngine
+from augur.application.db.engine import get_db_engine
 from augur.application.db.session import AugurDbEngine
 from augur.application.config import AugurConfig
 from augur.application.db.engine import get_database_string
@@ -127,9 +127,11 @@ def setup_periodic_tasks(sender, **kwargs):
     from augur.tasks.start_tasks import augur_collection_monitor
     from augur.tasks.start_tasks import non_repo_domain_tasks
     
-    with DatabaseEngine() as engine, AugurDbEngine(logger, engine) as session:
+    with get_db_engine() as engine:
+    
+        augur_db_engine = AugurDbEngine(logger, engine)
 
-        config = AugurConfig(logger, session)
+        config = AugurConfig(logger, augur_db_engine)
 
         print(augur_collection_monitor)
 
@@ -160,10 +162,9 @@ def init_worker(**kwargs):
 
     global engine
 
-    from augur.application.db.engine import DatabaseEngine
-
-    engine = DatabaseEngine(pool_size=5, max_overflow=10).engine
-
+    from augur.application.db.engine import create_database_engine, get_database_string
+    conn_string = get_database_string()
+    engine = create_database_engine(conn_string, pool_size=5, max_overflow=10)
 
 @worker_process_shutdown.connect
 def shutdown_worker(**kwargs):

@@ -11,7 +11,7 @@ import logging
 import secrets
 
 from augur.application.db.models import Repo
-from augur.application.db.engine import get_augur_db_session
+from augur.application.db.engine import get_db_session
 
 from augur.application.db.models.base import Base
 DEFAULT_REPO_GROUP_ID = 1
@@ -308,7 +308,7 @@ class User(Base):
         if username is None or password is None or email is None or first_name is None or last_name is None:
             return False, {"status": "Missing field"} 
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
 
             user = session.query(User).filter(User.login_name == username).first()
             if user is not None:
@@ -398,35 +398,35 @@ class User(Base):
 
     def add_group(self, group_name):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = UserGroup.insert(session, self.user_id, group_name)
 
         return result
 
     def remove_group(self, group_name):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = UserGroup.delete(session, self.user_id, group_name)
 
         return result
 
     def add_repo(self, group_name, repo_url):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = UserRepo.add(session, repo_url, self.user_id, group_name)
 
         return result
 
     def remove_repo(self, session, group_name, repo_id):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = UserRepo.delete(session, repo_id, self.user_id, group_name)
 
         return result
 
     def add_org(self, group_name, org_url):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = UserRepo.add_org_repos(session, org_url, self.user_id, group_name)
 
         return result
@@ -448,7 +448,7 @@ class User(Base):
 
         from augur.util.repo_load_controller import RepoLoadController
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = RepoLoadController(session).paginate_repos("user", page, page_size, sort, direction, user=self)
 
         return result
@@ -456,7 +456,7 @@ class User(Base):
     def get_repo_count(self):
         from augur.util.repo_load_controller import RepoLoadController
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = RepoLoadController(session).get_repo_count(source="user", user=self)
 
         return result
@@ -465,7 +465,7 @@ class User(Base):
     def get_group_repos(self, group_name, page=0, page_size=25, sort="repo_id", direction="ASC"):
         from augur.util.repo_load_controller import RepoLoadController
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             result = RepoLoadController(session).paginate_repos("group", page, page_size, sort, direction, user=self, group_name=group_name)
 
         return result
@@ -474,7 +474,7 @@ class User(Base):
     def get_group_repo_count(self, group_name):
         from augur.util.repo_load_controller import RepoLoadController
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             controller = RepoLoadController(session)
 
         result = controller.get_repo_count(source="group", group_name=group_name, user=self)
@@ -483,7 +483,7 @@ class User(Base):
 
     def invalidate_session(self, token):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             row_count = session.query(UserSessionToken).filter(UserSessionToken.user_id == self.user_id, UserSessionToken.token == token).delete()
             session.commit()
 
@@ -491,7 +491,7 @@ class User(Base):
 
     def delete_app(self, app_id):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             row_count = session.query(ClientApplication).filter(ClientApplication.user_id == self.user_id, ClientApplication.id == app_id).delete()
             session.commit()
 
@@ -499,7 +499,7 @@ class User(Base):
 
     def add_app(self, name, redirect_url):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             try:
                 app = ClientApplication(id=secrets.token_hex(16), api_key=secrets.token_hex(), name=name, redirect_url=redirect_url, user_id=self.user_id)
                 session.add(app)
@@ -512,7 +512,7 @@ class User(Base):
 
     def toggle_group_favorite(self, group_name):
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             group = session.query(UserGroup).filter(UserGroup.name == group_name, UserGroup.user_id == self.user_id).first()
             if not group:
                 return False, {"status": "Group does not exist"}

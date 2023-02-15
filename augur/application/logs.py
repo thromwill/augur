@@ -76,9 +76,9 @@ def initialize_stream_handler(logger, log_level):
 
 def get_log_config():
     
-    from augur.application.db.engine import get_augur_db_session
+    from augur.application.db.engine import get_db_session
 
-    with get_augur_db_session() as session:
+    with get_db_session() as session:
 
         query = session.query(Config).filter_by(section_name="Logging")
         section_data = execute_session_query(query, 'all')

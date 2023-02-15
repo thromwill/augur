@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 from augur.application.db.models.base import Base
-from augur.application.db.engine import DatabaseEngine
+from augur.application.db.engine import get_db_engine
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -60,7 +60,7 @@ def run_migrations_online():
 
     """
 
-    with DatabaseEngine() as connectable, connectable.connect() as connection:
+    with get_db_engine() as connectable, connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

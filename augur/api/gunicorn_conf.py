@@ -6,11 +6,11 @@ from pathlib import Path
 import shutil
 
 
-from augur.application.db.engine import get_augur_db_session
+from augur.application.db.engine import get_db_session
 from augur.application.config import AugurConfig
 
 logger = logging.getLogger(__name__)
-with get_augur_db_session() as session:
+with get_db_session() as session:
 
     augur_config = AugurConfig(logger, session)
         

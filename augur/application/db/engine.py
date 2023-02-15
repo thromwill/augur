@@ -52,96 +52,84 @@ def get_database_string() -> str:
 
     return db_conn_string
 
-class DatabaseEngine():
 
-    def __init__(self, **kwargs):
+def create_database_engine(url, **kwargs):  
+    """Create sqlalchemy database engine 
 
-        pool_size = kwargs.get("connection_pool_size")
-        if pool_size:
-            del kwargs["connection_pool_size"]
-            kwargs["pool_size"] = pool_size
+    Note:
+        A new database engine is created each time the function is called
 
-        self._engine = self.create_database_engine(**kwargs)
+    Returns:
+        sqlalchemy database engine
+    """ 
 
+    # curframe = inspect.currentframe()
+    # calframe = inspect.getouterframes(curframe, 2)
+    # print('file name:', calframe[1][1])
+    # print('function name:', calframe[1][3])
 
-    def __enter__(self):
-        return self._engine
+    engine = create_engine(url, **kwargs)
 
+    @event.listens_for(engine, "connect", insert=True)
+    def set_search_path(dbapi_connection, connection_record):
+        existing_autocommit = dbapi_connection.autocommit
+        dbapi_connection.autocommit = True
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET SESSION search_path=public,augur_data,augur_operations,spdx")
+        cursor.close()
+        dbapi_connection.autocommit = existing_autocommit
 
-    def __exit__(self, exception_type, exception_value, exception_traceback):
-
-        self._engine.dispose()
-
-    def dispose(self):
-        self._engine.dispose()
-
-    @property
-    def engine(self):
-        return self._engine
-
-
-    def create_database_engine(self, **kwargs):  
-        """Create sqlalchemy database engine 
-
-        Note:
-            A new database engine is created each time the function is called
-
-        Returns:
-            sqlalchemy database engine
-        """ 
-
-        # curframe = inspect.currentframe()
-        # calframe = inspect.getouterframes(curframe, 2)
-        # print('file name:', calframe[1][1])
-        # print('function name:', calframe[1][3])
-
-        db_conn_string = get_database_string()
-
-        engine = create_engine(db_conn_string, **kwargs)
-
-        @event.listens_for(engine, "connect", insert=True)
-        def set_search_path(dbapi_connection, connection_record):
-            existing_autocommit = dbapi_connection.autocommit
-            dbapi_connection.autocommit = True
-            cursor = dbapi_connection.cursor()
-            cursor.execute("SET SESSION search_path=public,augur_data,augur_operations,spdx")
-            cursor.close()
-            dbapi_connection.autocommit = existing_autocommit
-
-        return engine
-
+    return engine
 
 
 @contextmanager
-def get_augur_db_session():
+def get_db_engine(**kwargs):
+
+    if not kwargs.get("pool_size"):
+        kwargs["pool_size"] = 1
+
+    if not kwargs.get("max_overflow"):
+        kwargs["max_overflow"] = 0
+
+    db_conn_string = get_database_string()
+    engine = create_database_engine(db_conn_string, **kwargs)
+
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+@contextmanager
+def get_db_session():
     from sqlalchemy.orm import Session
 
-    engine = DatabaseEngine(pool_size=1, max_overflow=0).engine
+    db_conn_string = get_database_string()
+    engine = create_database_engine(db_conn_string, pool_size=1, max_overflow=0)
     session = Session(engine)
 
     try:
         yield session
     finally:
-        # Code to release resource, e.g.:
         session.close()
+        engine.dispose()
 
-class EngineConnection():
+# class EngineConnection():
 
-    def __init__(self, engine):
-        self.connection = self.get_connection(engine)
+#     def __init__(self, engine):
+#         self.connection = self.get_connection(engine)
 
-    def __enter__(self):
-        return self.connection
+#     def __enter__(self):
+#         return self.connection
 
-    def __exit__(self, exception_type, exception_value, exception_traceback):
+#     def __exit__(self, exception_type, exception_value, exception_traceback):
 
-        self.connection.close()
+#         self.connection.close()
 
-    def get_connection(self, engine):
+#     def get_connection(self, engine):
 
-        func = engine.connect
+#         func = engine.connect
 
-        return catch_operational_error(func)
+#         return catch_operational_error(func)
 
         
 

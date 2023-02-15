@@ -24,7 +24,7 @@ from beaker.cache import CacheManager, Cache
 
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
-from augur.application.db.engine import DatabaseEngine
+from augur.application.db.engine import get_database_string, create_database_engine
 from metadata import __version__ as augur_code_version
 
 # from augur.api.routes import AUGUR_API_VERSION
@@ -320,7 +320,8 @@ def get_server_cache(config, cache_manager) -> Cache:
 
 
 logger = AugurLogger("server").get_logger()
-engine = DatabaseEngine().engine
+conn_string = get_database_string()
+engine = create_database_engine(conn_string, pool_size=1, max_overflow=0)
 db_session = Session(engine)
 augur_config = AugurConfig(logger, db_session)
 

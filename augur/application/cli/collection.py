@@ -27,7 +27,7 @@ from augur.application.db.util import execute_session_query
 
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
-from augur.application.db.engine import get_augur_db_session
+from augur.application.db.engine import get_db_session
 from augur.application.cli import test_connection, test_db_connection 
 from augur.tasks.github.util.github_random_key_auth import GithubRandomKeyAuth
 from augur.tasks.github.util.github_paginator import hit_api
@@ -73,7 +73,7 @@ def cli():
 @test_db_connection
 def status(failed):
 
-    with get_augur_db_session() as session:
+    with get_db_session() as session:
 
         key_manager = GithubRandomKeyAuth(session)
 

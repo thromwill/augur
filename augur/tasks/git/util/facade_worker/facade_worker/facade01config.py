@@ -242,7 +242,6 @@ def get_database_args_from_env():
 #     def inc_repos_processed(self):
 #         self.repos_processed += 1
 
-
 class FacadeTaskUtility:
 
     def __init__(self, augur_db_engine, logger) -> None:
@@ -297,6 +296,7 @@ class FacadeTaskUtility:
             self.augur_db_engine.execute_sql(log_message)
         except:
             pass
+
     def insert_or_update_data(self, query, **bind_args)-> None:
         """Provide deadlock detection for postgres updates, inserts, and deletions for facade.
 

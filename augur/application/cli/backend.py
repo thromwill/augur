@@ -24,12 +24,12 @@ from augur import instance_id
 from augur.tasks.start_tasks import augur_collection_monitor, CollectionState
 from augur.tasks.init.redis_connection import redis_connection 
 from augur.application.db.models import Repo, CollectionStatus
-from augur.application.db.engine import get_augur_db_session
+from augur.application.db.engine import get_db_session
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
 from augur.application.cli import test_connection, test_db_connection 
 from augur.application.db.session import AugurDbEngine
-from augur.application.db.engine import DatabaseEngine
+from augur.application.db.engine import get_db_engine
 
 
 
@@ -39,7 +39,7 @@ logger = AugurLogger("augur", reset_logfiles=True).get_logger()
 
 def create_collection_status(logger):
 
-    with DatabaseEngine(pool_size=1, max_overflow=1) as engine:
+    with get_db_engine() as engine:
 
         augur_db_engine = AugurDbEngine(logger, engine)
 
@@ -86,7 +86,7 @@ def start(disable_collection, development, port):
     except FileNotFoundError:
         logger.error("\n\nPlease run augur commands in the root directory\n\n")
 
-    with get_augur_db_session() as db_session:
+    with get_db_session() as db_session:
         config = AugurConfig(logger, db_session)
         host = config.get_value("Server", "host")
 
@@ -123,7 +123,7 @@ def start(disable_collection, development, port):
 
         create_collection_status(logger)
 
-        with get_augur_db_session() as session:
+        with get_db_session() as session:
             collection_status_list = session.query(CollectionStatus).filter(CollectionStatus.core_status == CollectionState.COLLECTING.value
                 or CollectionStatus.secondary_status == CollectionState.COLLECTING.value)
 
@@ -172,7 +172,7 @@ def start(disable_collection, development, port):
         try:
             clear_redis_caches()
             connection_string = ""
-            with get_augur_db_session() as session:
+            with get_db_session() as session:
                 config = AugurConfig(logger, session)
                 connection_string = config.get_section("RabbitMQ")['connection_string']
 
@@ -192,7 +192,7 @@ def stop():
 
     clear_redis_caches()
     connection_string = ""
-    with get_augur_db_session() as session:
+    with get_db_session() as session:
         config = AugurConfig(logger, session)
         connection_string = config.get_section("RabbitMQ")['connection_string']
 
@@ -209,7 +209,7 @@ def kill():
     clear_redis_caches()
 
     connection_string = ""
-    with get_augur_db_session() as session:
+    with get_db_session() as session:
         config = AugurConfig(logger, session)
         connection_string = config.get_section("RabbitMQ")['connection_string']
 

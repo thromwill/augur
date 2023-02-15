@@ -10,7 +10,7 @@ import click
 import logging
 from werkzeug.security import generate_password_hash
 from augur.application.db.models import User
-from augur.application.db.engine import get_augur_db_session
+from augur.application.db.engine import get_db_session
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def cli():
 def add_user(username, email, firstname, lastname, admin, phone_number, password):
     """Add a new user to the database with email address = EMAIL."""
 
-    with get_augur_db_session() as session:
+    with get_db_session() as session:
 
         if session.query(User).filter(User.login_name == username).first() is not None:
             return click.echo("username already taken")

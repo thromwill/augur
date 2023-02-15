@@ -7,7 +7,7 @@ import base64
 
 from typing import List, Any, Dict
 
-from augur.application.db.engine import DatabaseEngine
+from augur.application.db.engine import get_db_engine
 from augur.application.db.models import Repo, UserRepo, RepoGroup, UserGroup, User, CollectionStatus
 from augur.application.db.models.augur_operations import retrieve_org_repos
 from augur.application.db.util import execute_session_query
@@ -177,7 +177,7 @@ class RepoLoadController:
 
         get_page_of_repos_sql = s.sql.text(query[0])
 
-        with DatabaseEngine(connection_pool_size=1) as engine:
+        with get_db_engine(connection_pool_size=1) as engine:
 
             results = pd.read_sql(get_page_of_repos_sql, engine)
 
