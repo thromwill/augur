@@ -200,7 +200,7 @@ def process_commit_metadata(augur_db, key_auth, logger, platform_id, contributor
     return
 
 
-def link_commits_to_contributor(util, logger, contributorQueue):
+def link_commits_to_contributor(facade_db, logger, contributorQueue):
 
     # # iterate through all the commits with emails that appear in contributors and give them the relevant cntrb_id.
     for cntrb in contributorQueue:
@@ -216,7 +216,7 @@ def link_commits_to_contributor(util, logger, contributorQueue):
         """).bindparams(cntrb_id=cntrb["cntrb_id"],cntrb_email=cntrb["email"])
 
         #engine.execute(query, **data)
-        util.insert_or_update_data(query)          
+        facade_db.insert_or_update_data(query)          
         
     
     return
@@ -291,6 +291,9 @@ def insert_facade_contributors(repo_id):
     
 
     with FacadeTaskManifest(logger) as manifest:
+
+        facade_db = manifest.facade_db
+
         # sql query used to find corresponding cntrb_id's of emails found in the contributor's table
         # i.e., if a contributor already exists, we use it!
         resolve_email_to_cntrb_id_sql = s.sql.text("""
@@ -326,11 +329,11 @@ def insert_facade_contributors(repo_id):
         #existing_cntrb_emails = json.loads(pd.read_sql(resolve_email_to_cntrb_id_sql, self.db, params={
         #                                    'repo_id': repo_id}).to_json(orient="records"))
 
-        result = manifest.augur_db.execute_sql(resolve_email_to_cntrb_id_sql).fetchall()
+        result = facade_db.execute_sql(resolve_email_to_cntrb_id_sql).fetchall()
         existing_cntrb_emails = [dict(zip(row.keys(), row)) for row in result]
 
         print(existing_cntrb_emails)
-        link_commits_to_contributor(manifest.util, logger, list(existing_cntrb_emails))
+        link_commits_to_contributor(facade_db, logger, list(existing_cntrb_emails))
 
         logger.info("Done with inserting and updating facade contributors")
     return

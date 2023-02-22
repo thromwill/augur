@@ -86,7 +86,7 @@ def create_database_engine(url, **kwargs):
 def get_db_engine(**kwargs):
 
     if not kwargs.get("pool_size"):
-        kwargs["pool_size"] = 1
+        kwargs["pool_size"] = 3
 
     if not kwargs.get("max_overflow"):
         kwargs["max_overflow"] = 0
@@ -107,7 +107,7 @@ def get_db_session(engine=None):
     if not engine:
         engine_created = True
         db_conn_string = get_database_string()
-        engine = create_database_engine(db_conn_string, pool_size=1, max_overflow=0)
+        engine = create_database_engine(db_conn_string, pool_size=3, max_overflow=0)
         
     session = Session(engine)
 

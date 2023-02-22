@@ -223,7 +223,7 @@ def pull_request_review_comments(repo_git: str) -> None:
         pr_review_comments = GithubPaginator(url, manifest.key_auth, logger)
 
         # get repo_id
-        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        query = augur_db.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo_id = execute_session_query(query, 'one').repo_id
 
 
@@ -313,7 +313,9 @@ def pull_request_reviews(repo_git: str, pr_number_list) -> None:
 
     with GithubTaskManifest(logger) as manifest:
 
-        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        augur_db = manifest.augur_db
+
+        query = augur_db.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo_id = execute_session_query(query, 'one').repo_id
 
         # define GithubTaskSession to handle insertions, and store oauth keys 
@@ -330,7 +332,7 @@ def pull_request_reviews(repo_git: str, pr_number_list) -> None:
 
             logger.info(f"Processing pr number: {pr_number}")
 
-            reviews = PullRequest(manifest.session, owner, repo, pr_number).get_reviews_collection()
+            reviews = PullRequest(augur_db.session, owner, repo, pr_number).get_reviews_collection()
 
             review_list = list(reviews)
 

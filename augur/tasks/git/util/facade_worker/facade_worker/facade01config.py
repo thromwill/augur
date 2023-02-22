@@ -394,6 +394,7 @@ class FacadeTaskManifest:
         self.rebuild_caches = worker_options["rebuild_caches"]
         self.multithreaded = worker_options["multithreaded"]
         self.create_xlsx_summary_files = worker_options["create_xlsx_summary_files"]
+        self.run_facade_contributors = worker_options["run_facade_contributors"]
 
         self.tool_source = "Facade"
         self.data_source = "Git Log"

@@ -121,7 +121,7 @@ def process_events(events, task_name, repo_id, logger, augur_db):
                 query = augur_db.session.query(Issue).filter(Issue.issue_url == issue_url)
                 related_issue = execute_session_query(query, 'one')
             except s.orm.exc.NoResultFound:
-                logger.info(f"{task_name}: Could not find related pr")
+                logger.info(f"{task_name}: Could not find related issue")
                 logger.info(
                     f"{task_name}: We were searching for: {issue_url}")
                 # TODO: Add table to log all errors

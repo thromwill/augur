@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, event
 
 from augur.application.logs import TaskLogConfig
 
-from augur.application.db.engine import get_db_engine
+from augur.application.db.engine import get_db_engine, get_db_session
 from augur.application.db.session import AugurDb
 from augur.application.config import AugurConfig
 from augur.application.db.engine import get_database_string
@@ -127,13 +127,9 @@ def setup_periodic_tasks(sender, **kwargs):
     from augur.tasks.start_tasks import augur_collection_monitor
     from augur.tasks.start_tasks import non_repo_domain_tasks
     
-    with get_db_engine() as engine:
+    with get_db_session() as session:
     
-        augur_db = AugurDbEngine(logger, engine)
-
-        config = AugurConfig(logger, augur_db)
-
-        print(augur_collection_monitor)
+        config = AugurConfig(logger, session)
 
         collection_interval = config.get_value('Tasks', 'collection_interval')
         logger.info(f"Scheduling collection every {collection_interval/60} minutes")

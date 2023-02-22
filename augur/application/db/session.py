@@ -5,7 +5,7 @@ import sys
 import random
 import logging
 import json
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import OperationalError
 
@@ -54,7 +54,8 @@ class AugurDb():
     
         self.logger = logger
         self.engine = engine
-        self.session = Session(engine)
+        Session = sessionmaker(engine)
+        self.session = Session()
 
     def __enter__(self):
         return self

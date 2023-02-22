@@ -75,7 +75,7 @@ def facade_analysis_init_facade_task(repo_id):
         update_project_status = s.sql.text("""UPDATE augur_operations.collection_status
             SET facade_status='Collecting' WHERE 
             repo_id=:repo_id""").bindparams(repo_id=repo_id)
-        manifest.augur_db.execute_sql(update_project_status)
+        manifest.facade_db.execute_sql(update_project_status)
 
 @celery.task
 def grab_comitters(repo_id,platform="github"):
@@ -85,7 +85,7 @@ def grab_comitters(repo_id,platform="github"):
     with GithubTaskManifest(logger) as manifest:
 
         try:
-            grab_committer_list(manifest.facade_db, manifest.key_auth, logger, manifest.platform_id, repo_id,platform)
+            grab_committer_list(manifest.augur_db, manifest.key_auth, logger, manifest.platform_id, repo_id,platform)
         except Exception as e:
             logger.error(f"Could not grab committers from github endpoint!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
 

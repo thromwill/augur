@@ -39,19 +39,15 @@ logger = AugurLogger("augur", reset_logfiles=True).get_logger()
 
 def create_collection_status(logger):
 
-    with get_db_engine() as engine:
-
-        augur_db_engine = AugurDb(logger, engine)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
 
         query = s.sql.text("""
         SELECT repo_id FROM repo WHERE repo_id NOT IN (SELECT repo_id FROM augur_operations.collection_status)
         """)
 
-        repos = augur_db_engine.execute_sql(query).fetchall()
-
-        with SqlalchemySession(engine) as session:
-            for repo in repos:
-                CollectionStatus.insert(session,repo[0])
+        repos = augur_db.execute_sql(query).fetchall()
+        for repo in repos:
+            CollectionStatus.insert(augur_db, repo[0])
 
 
 @click.group('server', short_help='Commands for controlling the backend API server & data collection workers')

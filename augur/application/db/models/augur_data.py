@@ -846,7 +846,7 @@ class Repo(Base):
     )
 
     repo_group = relationship("RepoGroup")
-    user_repo = relationship("UserRepo")
+    user_repo = relationship("UserRepo", back_populates="repo")
     collection_status = relationship("CollectionStatus", back_populates="repo")
 
     @staticmethod
@@ -1180,10 +1180,6 @@ class Commit(Base):
     )
 
     contributor = relationship(
-        "Contributor",
-        primaryjoin="Commit.cmt_author_platform_username == Contributor.cntrb_login",
-    )
-    contributor1 = relationship(
         "Contributor",
         primaryjoin="Commit.cmt_author_platform_username == Contributor.cntrb_login",
     )

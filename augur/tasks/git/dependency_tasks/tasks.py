@@ -14,9 +14,11 @@ def process_dependency_metrics(repo_git):
     logger = logging.getLogger(process_dependency_metrics.__name__)
 
     with GithubTaskManifest(logger) as manifest:
+        
+        augur_db = manifest.augur_db
 
-        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        query = augur_db.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo = execute_session_query(query,'one')
 
-        deps_model(manifest.facade_db, logger, repo.repo_id)
+        deps_model(augur_db, logger, repo.repo_id)
         

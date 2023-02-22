@@ -290,7 +290,7 @@ def repo_info_model(key_auth, repo_orm_obj, logger, augur_db):
 
     # Note that the addition of information about where a repository may be forked from, and whether a repository is archived, updates the `repo` table, not the `repo_info` table.
     forked = is_forked(key_auth, owner, repo, logger)
-    archived = is_archived(key_auth, owner, repo)
+    archived = is_archived(key_auth, owner, repo, logger)
     archived_date_collected = None
     if archived is not False:
         archived_date_collected = archived
