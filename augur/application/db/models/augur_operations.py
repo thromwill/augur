@@ -11,7 +11,8 @@ import logging
 import secrets
 
 from augur.application.db.models import Repo
-from augur.application.db.engine import get_db_session
+from augur.application.db.engine import get_db_session, get_db_engine
+from augur.application.db.session import AugurDb
 
 from augur.application.db.models.base import Base
 DEFAULT_REPO_GROUP_ID = 1
@@ -411,9 +412,12 @@ class User(Base):
         return result
 
     def add_repo(self, group_name, repo_url):
+        from augur.tasks.github.util.github_random_key_auth import GithubRandomKeyAuth
 
-        with get_db_session() as session:
-            result = UserRepo.add(session, repo_url, self.user_id, group_name)
+        with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+            key_auth = GithubRandomKeyAuth(augur_db.session)
+
+            result = UserRepo.add(augur_db, key_auth, repo_url, self.user_id, group_name)
 
         return result
 
@@ -425,9 +429,12 @@ class User(Base):
         return result
 
     def add_org(self, group_name, org_url):
+        from augur.tasks.github.util.github_random_key_auth import GithubRandomKeyAuth
 
-        with get_db_session() as session:
-            result = UserRepo.add_org_repos(session, org_url, self.user_id, group_name)
+        with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+            key_auth = GithubRandomKeyAuth(augur_db.session)
+
+            result = UserRepo.add_org_repos(augur_db, key_auth, org_url, self.user_id, group_name)
 
         return result
 
@@ -620,7 +627,7 @@ class UserGroup(Base):
         return True, {"status": "Group deleted"}
 
     @staticmethod
-    def convert_group_name_to_id(session, user_id: int, group_name: str) -> int:
+    def convert_group_name_to_id(augur_db, user_id: int, group_name: str) -> int:
         """Convert a users group name to the database group id.
 
         Args:
@@ -636,7 +643,7 @@ class UserGroup(Base):
             return None
 
         try:
-            user_group = session.query(UserGroup).filter(UserGroup.user_id == user_id, UserGroup.name == group_name).one()
+            user_group = augur_db.session.query(UserGroup).filter(UserGroup.user_id == user_id, UserGroup.name == group_name).one()
         except NoResultFound:
             return None
 
@@ -663,7 +670,7 @@ class UserRepo(Base):
     group = relationship("UserGroup")
 
     @staticmethod
-    def insert(session, repo_id: int, group_id:int = 1) -> bool:
+    def insert(augur_db, repo_id: int, group_id:int = 1) -> bool:
         """Add a repo to a user in the user_repos table.
 
         Args:
@@ -684,14 +691,14 @@ class UserRepo(Base):
         return_columns = ["group_id", "repo_id"]
 
         try:
-            data = session.insert_data(repo_user_group_data, UserRepo, repo_user_group_unique, return_columns)
+            data = augur_db.insert_data(repo_user_group_data, UserRepo, repo_user_group_unique, return_columns)
         except IntegrityError:
             return False
 
         return data[0]["group_id"] == group_id and data[0]["repo_id"] == repo_id
 
     @staticmethod
-    def add(session, url: List[str], user_id: int, group_name=None, group_id=None, valid_repo=False) -> dict:
+    def add(augur_db, key_auth, url: List[str], user_id: int, group_name=None, group_id=None, valid_repo=False) -> dict:
         """Add repo to the user repo table
 
         Args:
@@ -716,24 +723,24 @@ class UserRepo(Base):
 
         if group_id is None:
 
-            group_id = UserGroup.convert_group_name_to_id(session, user_id, group_name)
+            group_id = UserGroup.convert_group_name_to_id(augur_db, user_id, group_name)
             if group_id is None:
                 return False, {"status": "Invalid group name"}
 
         if not valid_repo:
-            result = Repo.is_valid_github_repo(session.oauths, url)
+            result = Repo.is_valid_github_repo(key_auth, url)
             if not result[0]:
                 return False, {"status": result[1]["status"], "repo_url": url}
 
-        repo_id = Repo.insert(session, url, DEFAULT_REPO_GROUP_ID, "Frontend")
+        repo_id = Repo.insert(augur_db, url, DEFAULT_REPO_GROUP_ID, "Frontend")
         if not repo_id:
             return False, {"status": "Repo insertion failed", "repo_url": url}
 
-        result = UserRepo.insert(session, repo_id, group_id)
+        result = UserRepo.insert(augur_db, repo_id, group_id)
         if not result:
             return False, {"status": "repo_user insertion failed", "repo_url": url}
 
-        status = CollectionStatus.insert(session, repo_id)
+        status = CollectionStatus.insert(augur_db, repo_id)
         if not status:
             return False, {"status": "Failed to create status for repo", "repo_url": url}
 
@@ -766,18 +773,18 @@ class UserRepo(Base):
         return True, {"status": "Repo Removed"}
 
     @staticmethod
-    def add_org_repos(session, url: List[str], user_id: int, group_name: int):
+    def add_org_repos(augur_db, key_auth, url: List[str], user_id: int, group_name: int):
         """Add list of orgs and their repos to a users repos.
 
         Args:
             urls: list of org urls
             user_id: id of user_id from users table
         """
-        group_id = UserGroup.convert_group_name_to_id(session, user_id, group_name)
+        group_id = UserGroup.convert_group_name_to_id(augur_db, user_id, group_name)
         if group_id is None:
             return False, {"status": "Invalid group name"}
 
-        result = retrieve_org_repos(session.oauths, url)
+        result = retrieve_org_repos(key_auth, url)
         if not result[0]:
             return False, result[1]
 
@@ -787,7 +794,7 @@ class UserRepo(Base):
         failed_repos = []
         for repo in repos:
 
-            result = UserRepo.add(session, repo, user_id, group_id=group_id, valid_repo=True)
+            result = UserRepo.add(augur_db, key_auth, repo, user_id, group_id=group_id, valid_repo=True)
 
             # keep track of all the repos that failed
             if not result[0]:
@@ -937,10 +944,10 @@ class CollectionStatus(Base):
     repo = relationship("Repo", back_populates="collection_status")
 
     @staticmethod
-    def insert(session, repo_id):
+    def insert(augur_db, repo_id):
 
         collection_status_unique = ["repo_id"]
-        result = session.insert_data({"repo_id": repo_id}, CollectionStatus, collection_status_unique, on_conflict_update=False)
+        result = augur_db.insert_data({"repo_id": repo_id}, CollectionStatus, collection_status_unique, on_conflict_update=False)
         if not result:
             return False
 

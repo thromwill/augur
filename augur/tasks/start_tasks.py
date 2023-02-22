@@ -60,16 +60,15 @@ def collection_task_wrapper(self,*args,**kwargs):
 @celery.task
 def core_task_success(repo_git):
 
-    from augur.tasks.init.celery_app import engine
-    from sqlalchemy.orm import Session
-
     logger = logging.getLogger(core_task_success.__name__)
 
-    logger.info(f"Repo '{repo_git}' succeeded through core collection")
+    with GithubTaskManifest(logger) as manifest:
 
-    with Session(engine) as session:
+        augur_db = manifest.augur_db
 
-        repo = Repo.get_by_repo_git(session, repo_git)
+        logger.info(f"Repo '{repo_git}' succeeded through core collection")
+
+        repo = Repo.get_by_repo_git(augur_db.session, repo_git)
         if not repo:
             raise Exception(f"Task with repo_git of {repo_git} but could not be found in Repo table")
 
@@ -79,21 +78,20 @@ def core_task_success(repo_git):
         collection_status.core_data_last_collected = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         collection_status.core_task_id = None
 
-        session.commit()
+        augur_db.session.commit()
 
 @celery.task
 def secondary_task_success(repo_git):
 
-    from augur.tasks.init.celery_app import engine
-    from sqlalchemy.orm import Session
-
     logger = logging.getLogger(secondary_task_success.__name__)
 
-    logger.info(f"Repo '{repo_git}' succeeded through secondary collection")
+    with GithubTaskManifest(logger) as manifest:
 
-    with Session(engine) as session:
+        augur_db = manifest.augur_db
 
-        repo = Repo.get_by_repo_git(session, repo_git)
+        logger.info(f"Repo '{repo_git}' succeeded through secondary collection")
+
+        repo = Repo.get_by_repo_git(augur_db.session, repo_git)
         if not repo:
             raise Exception(f"Task with repo_git of {repo_git} but could not be found in Repo table")
 
@@ -103,15 +101,16 @@ def secondary_task_success(repo_git):
         collection_status.secondary_data_last_collected	 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         collection_status.secondary_task_id = None
 
-        session.commit()
+        augur_db.session.commit()
 
 @celery.task
 def task_failed(request,exc,traceback):
 
-    from augur.tasks.init.celery_app import engine
-    from sqlalchemy.orm import Session
-
     logger = logging.getLogger(task_failed.__name__)
+
+        with GithubTaskManifest(logger) as manifest:
+
+        augur_db = manifest.augur_db
     
     with Session(engine) as session:
         query = session.query(CollectionStatus).filter(CollectionStatus.core_task_id == request.id)

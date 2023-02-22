@@ -22,7 +22,9 @@ def process_contributors():
 
     with GithubTaskManifest(logger) as manifest:
 
-        query = manifest.session.query(Contributor).filter(Contributor.data_source == data_source, Contributor.cntrb_created_at is None, Contributor.cntrb_last_used is None)
+        augur_db = manifest.augur_db
+
+        query = augur_db.session.query(Contributor).filter(Contributor.data_source == data_source, Contributor.cntrb_created_at is None, Contributor.cntrb_last_used is None)
         contributors = execute_session_query(query, 'all')
 
         contributors_len = len(contributors)
@@ -59,7 +61,7 @@ def process_contributors():
             enriched_contributors.append(contributor_dict)
 
         logger.info(f"Enriching {len(enriched_contributors)} contributors")
-        manifest.augur_db_engine.insert_data(enriched_contributors, Contributor, ["cntrb_id"])
+        augur_db.insert_data(enriched_contributors, Contributor, ["cntrb_id"])
 
 
 

@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, event
 from augur.application.logs import TaskLogConfig
 
 from augur.application.db.engine import get_db_engine
-from augur.application.db.session import AugurDbEngine
+from augur.application.db.session import AugurDb
 from augur.application.config import AugurConfig
 from augur.application.db.engine import get_database_string
 from augur.tasks.init import get_redis_conn_values, get_rabbitmq_conn_string
@@ -129,9 +129,9 @@ def setup_periodic_tasks(sender, **kwargs):
     
     with get_db_engine() as engine:
     
-        augur_db_engine = AugurDbEngine(logger, engine)
+        augur_db = AugurDbEngine(logger, engine)
 
-        config = AugurConfig(logger, augur_db_engine)
+        config = AugurConfig(logger, augur_db)
 
         print(augur_collection_monitor)
 

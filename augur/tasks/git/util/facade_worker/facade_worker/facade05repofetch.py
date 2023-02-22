@@ -41,34 +41,34 @@ from .facade02utilitymethods import update_repo_log, trim_commit, store_working_
 from augur.application.db.models.augur_data import *
 from augur.application.db.util import execute_session_query, convert_orm_list_to_dict_list
 
-def git_repo_initialize(augur_db_engine, util, session, repo_base_directory, repo_git,repo_group_id=None):
+def git_repo_initialize(facade_db, repo_base_directory, repo_git,repo_group_id=None):
 
     # Select any new git repos so we can set up their locations and git clone
     # Select any new git repos so we can set up their locations and git clone
     new_repos = []
     if repo_group_id is None:
-        util.update_status('Fetching non-cloned repos')
-        util.log_activity('Info','Fetching non-cloned repos')
+        facade_db.update_status('Fetching non-cloned repos')
+        facade_db.log_activity('Info','Fetching non-cloned repos')
 
         query = s.sql.text("""SELECT repo_id,repo_group_id,repo_git FROM repo WHERE repo_status LIKE 'New%'
             AND repo_git=:value""").bindparams(value=repo_git)
         
         
         #Get data as a list of dicts
-        new_repos = augur_db_engine.fetchall_data_from_sql_text(query)#list(cfg.cursor)
-        util.log_activity('Info', f'SPG new_repos is {new_repos}')
+        new_repos = facade_db.fetchall_data_from_sql_text(query)#list(cfg.cursor)
+        facade_db.log_activity('Info', f'SPG new_repos is {new_repos}')
 
 
     else:
-        util.update_status(f"Fetching repos with repo group id: {repo_group_id}")
-        util.log_activity('Info',f"Fetching repos with repo group id: {repo_group_id}")
+        facade_db.update_status(f"Fetching repos with repo group id: {repo_group_id}")
+        facade_db.log_activity('Info',f"Fetching repos with repo group id: {repo_group_id}")
 
         #query = s.sql.text("""SELECT repo_id,repo_group_id,repo_git FROM repo WHERE repo_status LIKE 'New%'""")
          
-        query = session.query(Repo).filter('New' in Repo.repo_status, Repo.repo_git == repo_git)
+        query = facade_db.session.query(Repo).filter('New' in Repo.repo_status, Repo.repo_git == repo_git)
         result = execute_session_query(query, 'all')
 
-        util.log_activity('Info',f'SPG result is {result}')
+        facade_db.log_activity('Info',f'SPG result is {result}')
 
         for repo in result:
             repo_dict = repo.__dict__
@@ -81,41 +81,41 @@ def git_repo_initialize(augur_db_engine, util, session, repo_base_directory, rep
 
     for row in new_repos:
 
-        util.log_activity('Info',f"Fetching repos with repo group id: {row['repo_group_id']}")
+        facade_db.log_activity('Info',f"Fetching repos with repo group id: {row['repo_group_id']}")
 
-        update_repo_log(augur_db_engine, util, row['repo_id'],'Cloning')
+        update_repo_log(facade_db, row['repo_id'],'Cloning')
 
         git = html.unescape(row['repo_git'])
 
         # Strip protocol from remote URL, set a unique path on the filesystem
         if git.find('://',0) > 0:
             repo_relative_path = git[git.find('://',0)+3:][:git[git.find('://',0)+3:].rfind('/',0)+1]
-            util.log_activity('Info',f"Repo Relative Path from facade05, from for row in new_repos, line 79: {repo_relative_path}")
-            util.log_activity('Info',f"The git path used : {git}")
+            facade_db.log_activity('Info',f"Repo Relative Path from facade05, from for row in new_repos, line 79: {repo_relative_path}")
+            facade_db.log_activity('Info',f"The git path used : {git}")
 
 
         else:
             repo_relative_path = git[:git.rfind('/',0)+1]
-            util.log_activity('Info',f"Repo Relative Path from facade05, line 80, reset at 86: {repo_relative_path}")
+            facade_db.log_activity('Info',f"Repo Relative Path from facade05, line 80, reset at 86: {repo_relative_path}")
 
 
         # Get the full path to the directory where we'll clone the repo
         repo_path = (f"{repo_base_directory}{row['repo_group_id']}/{repo_relative_path}")
-        util.log_activity('Info',f"Repo Path from facade05, line 86: {repo_path}")
+        facade_db.log_activity('Info',f"Repo Path from facade05, line 86: {repo_path}")
 
 
         # Get the name of repo
         repo_name = git[git.rfind('/',0)+1:]
         if repo_name.find('.git',0) > -1:
             repo_name = repo_name[:repo_name.find('.git',0)]
-            util.log_activity('Info',f"Repo Name from facade05, line 93: {repo_name}")
+            facade_db.log_activity('Info',f"Repo Name from facade05, line 93: {repo_name}")
 
 
         # Check if there will be a storage path collision
         query = s.sql.text("""SELECT NULL FROM repo WHERE CONCAT(repo_group_id,'/',repo_path,repo_name) = :repo_group_id
             """).bindparams(repo_group_id=f"{row['repo_group_id']}/{repo_relative_path}{repo_name}")
         
-        result = augur_db_engine.fetchall_data_from_sql_text(query)
+        result = facade_db.fetchall_data_from_sql_text(query)
 
         # If there is a collision, append a slug to repo_name to yield a unique path
         if len(result):
@@ -131,7 +131,7 @@ def git_repo_initialize(augur_db_engine, util, session, repo_base_directory, rep
 
             repo_name = f"{repo_name}-{slug}"
 
-            util.log_activity('Verbose',f"Identical repo detected, storing {git} in {repo_name}")
+            facade_db.log_activity('Verbose',f"Identical repo detected, storing {git} in {repo_name}")
 
         # Create the prerequisite directories
         return_code = subprocess.Popen([f"mkdir -p {repo_path}"],shell=True).wait()
@@ -143,22 +143,22 @@ def git_repo_initialize(augur_db_engine, util, session, repo_base_directory, rep
         if return_code != 0:
             print("COULD NOT CREATE REPO DIRECTORY")
 
-            update_repo_log(augur_db_engine, util, row['repo_id'],'Failed (mkdir)')
-            util.update_status(f"Failed (mkdir {repo_path})")
-            util.log_activity('Error',f"Could not create repo directory: {repo_path}" )
+            update_repo_log(facade_db, row['repo_id'],'Failed (mkdir)')
+            facade_db.update_status(f"Failed (mkdir {repo_path})")
+            facade_db.log_activity('Error',f"Could not create repo directory: {repo_path}" )
 
             raise Exception("Could not create git repo's prerequisite directories. "
                 " Do you have write access?")
 
-        update_repo_log(augur_db_engine, util, row['repo_id'],'New (cloning)')
+        update_repo_log(facade_db, row['repo_id'],'New (cloning)')
 
         query = s.sql.text("""UPDATE repo SET repo_status='New (Initializing)', repo_path=:pathParam, 
             repo_name=:nameParam WHERE repo_id=:idParam and repo_status != 'Empty'
             """).bindparams(pathParam=repo_relative_path,nameParam=repo_name,idParam=row['repo_id'])
 
-        augur_db_engine.execute_sql(query)
+        facade_db.execute_sql(query)
 
-        util.log_activity('Verbose',f"Cloning: {git}")
+        facade_db.log_activity('Verbose',f"Cloning: {git}")
 
         cmd = f"git -C {repo_path} clone '{git}' {repo_name}"
         return_code = subprocess.Popen([cmd], shell=True).wait()
@@ -170,43 +170,43 @@ def git_repo_initialize(augur_db_engine, util, session, repo_base_directory, rep
 
             update_project_status = s.sql.text("""UPDATE repo SET repo_status='Update' WHERE 
                 repo_group_id=:repo_group_id AND repo_status != 'Empty' AND repo_id=:repo_id""").bindparams(repo_group_id=row['repo_group_id'], repo_id=row["repo_id"])
-            augur_db_engine.execute_sql(update_project_status)
+            facade_db.execute_sql(update_project_status)
 
             # Since we just cloned the new repo, set it straight to analyze.
             query = s.sql.text("""UPDATE repo SET repo_status='Analyze',repo_path=:repo_path, repo_name=:repo_name
                 WHERE repo_id=:repo_id and repo_status != 'Empty'
                 """).bindparams(repo_path=repo_relative_path,repo_name=repo_name,repo_id=row['repo_id'])
 
-            augur_db_engine.execute_sql(query)
+            facade_db.execute_sql(query)
 
-            update_repo_log(augur_db_engine, util, row['repo_id'],'Up-to-date')
-            util.log_activity('Info',f"Cloned {git}")
+            update_repo_log(facade_db, row['repo_id'],'Up-to-date')
+            facade_db.log_activity('Info',f"Cloned {git}")
 
         else:
             # If cloning failed, log it and set the status back to new
-            update_repo_log(augur_db_engine, util, row['repo_id'],f"Failed ({return_code})")
+            update_repo_log(facade_db, row['repo_id'],f"Failed ({return_code})")
 
             query = s.sql.text("""UPDATE repo SET repo_status='New (failed)' WHERE repo_id=:repo_id and repo_status !='Empty'
                 """).bindparams(repo_id=row['repo_id'])
 
-            augur_db_engine.execute_sql(query)
+            facade_db.execute_sql(query)
 
-            util.log_activity('Error',f"Could not clone {git}")
+            facade_db.log_activity('Error',f"Could not clone {git}")
 
             raise Exception(f"Could not clone {git}")
 
-    util.log_activity('Info', f"Fetching new repos (complete)")
+    facade_db.log_activity('Info', f"Fetching new repos (complete)")
 
     
-def check_for_repo_updates(augur_db_engine, util,repo_git):
+def check_for_repo_updates(facade_db,repo_git):
 
 # Check the last time a repo was updated and if it has been longer than the
 # update_frequency, mark its project for updating during the next analysis.
 
-    util.update_status('Checking if any repos need to update')
-    util.log_activity('Info','Checking repos to update')
+    facade_db.update_status('Checking if any repos need to update')
+    facade_db.log_activity('Info','Checking repos to update')
 
-    update_frequency = util.get_setting('update_frequency')
+    update_frequency = facade_db.get_setting('update_frequency')
 
     get_initialized_repos = s.sql.text("""SELECT repo_id FROM repo WHERE repo_status NOT LIKE 'New%' 
         AND repo_status != 'Delete' 
@@ -214,7 +214,7 @@ def check_for_repo_updates(augur_db_engine, util,repo_git):
         AND repo_git = :value""").bindparams(value=repo_git)
     
     #repos = session.fetchall_data_from_sql_text(get_initialized_repos)#list(cfg.cursor)
-    repo = augur_db_engine.execute_sql(get_initialized_repos).fetchone()
+    repo = facade_db.execute_sql(get_initialized_repos).fetchone()
 
     if repo:
 
@@ -224,7 +224,7 @@ def check_for_repo_updates(augur_db_engine, util,repo_git):
             repos_id=:repo_id AND status='Up-to-date' AND
             date >= CURRENT_TIMESTAMP(6) - INTERVAL :update_freq HOUR """).bindparams(repo_id=repo['repo_id'],update_freq=update_frequency[0])
         
-        result = augur_db_engine.fetchall_data_from_sql_text(get_last_update)
+        result = facade_db.fetchall_data_from_sql_text(get_last_update)
         # If the repo has not been updated within the waiting period, mark it.
         # Also mark any other repos in the project, so we only recache the
         # project once per waiting period.
@@ -241,7 +241,7 @@ def check_for_repo_updates(augur_db_engine, util,repo_git):
             #     "SET status='Update' WHERE "
             #     "r.id=%s and r.status != 'Empty'")
              
-            augur_db_engine.execute_sql(mark_repo)
+            facade_db.execute_sql(mark_repo)
 
     # Mark the entire project for an update, so that under normal
     # circumstances caches are rebuilt only once per waiting period.
@@ -259,49 +259,49 @@ def check_for_repo_updates(augur_db_engine, util,repo_git):
     #     "SET r.status='Update' WHERE s.status='Update' AND "
     #     "r.status != 'Analyze' AND r.status != 'Empty'")
 
-    util.insert_or_update_data(update_project_status)
+    facade_db.insert_or_update_data(update_project_status)
 
 
-    util.log_activity('Info','Checking repos to update (complete)')
+    facade_db.log_activity('Info','Checking repos to update (complete)')
 
-def force_repo_updates(augur_db_engine, util,repo_git):
+def force_repo_updates(facade_db,repo_git):
 
 # Set the status of all non-new repos to "Update".
 
-    util.update_status('Forcing all non-new repos to update')
-    util.log_activity('Info','Forcing repos to update')
+    facade_db.update_status('Forcing all non-new repos to update')
+    facade_db.log_activity('Info','Forcing repos to update')
 
     get_repo_ids = s.sql.text("""UPDATE repo SET repo_status='Update' WHERE repo_status
         NOT LIKE 'New%' AND repo_status!='Delete' AND repo_status !='Empty'
         AND repo_git=:value""").bindparams(value=repo_git)
-    augur_db_engine.execute_sql(get_repo_ids)
+    facade_db.execute_sql(get_repo_ids)
 
-    util.log_activity('Info','Forcing repos to update (complete)')
+    facade_db.log_activity('Info','Forcing repos to update (complete)')
 
-def force_repo_analysis(augur_db_engine, util,repo_git):
+def force_repo_analysis(facade_db,repo_git):
 
-    util.update_status('Forcing all non-new repos to be analyzed')
-    util.log_activity('Info','Forcing repos to be analyzed')
+    facade_db.update_status('Forcing all non-new repos to be analyzed')
+    facade_db.log_activity('Info','Forcing repos to be analyzed')
 
     set_to_analyze = s.sql.text("""UPDATE repo SET repo_status='Analyze' WHERE repo_status
         NOT LIKE 'New%' AND repo_status!='Delete' AND repo_status != 'Empty'
         AND repo_git=:repo_git_ident""").bindparams(repo_git_ident=repo_git)
      
      
-    augur_db_engine.execute_sql(set_to_analyze)
+    facade_db.execute_sql(set_to_analyze)
 
-    util.log_activity('Info','Forcing repos to be analyzed (complete)')
+    facade_db.log_activity('Info','Forcing repos to be analyzed (complete)')
 
-def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_git):
+def git_repo_updates(facade_db, repo_base_directory, repo_git):
 
 # Update existing repos
 
-    util.update_status('Updating repos')
-    util.log_activity('Info','Updating existing repos')
+    facade_db.update_status('Updating repos')
+    facade_db.log_activity('Info','Updating existing repos')
 
     #query = s.sql.text("""SELECT repo_id,repo_group_id,repo_git,repo_name,repo_path FROM repo WHERE
     #    repo_status='Update'""")
-    query = session.query(Repo).filter(
+    query = facade_db.session.query(Repo).filter(
 		Repo.repo_git == repo_git,Repo.repo_status == 'Update')
     result = execute_session_query(query, 'all')
 
@@ -313,8 +313,8 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
     if row["repo_path"] is None or row["repo_name"] is None:
         raise Exception(f"The repo path or repo name is NULL for repo_id: {row['repo_id']}")
         
-    util.log_activity('Verbose',f"Attempting to update {row['repo_git']}")#['git'])
-    update_repo_log(augur_db_engine, util, row['repo_id'],'Updating')#['id'],'Updating')
+    facade_db.log_activity('Verbose',f"Attempting to update {row['repo_git']}")#['git'])
+    update_repo_log(facade_db, row['repo_id'],'Updating')#['id'],'Updating')
 
     attempt = 0
 
@@ -332,7 +332,7 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
 
             return_code_remote = subprocess.Popen([firstpull],shell=True).wait()
 
-            util.log_activity('Verbose', 'Got to here. 1.')
+            facade_db.log_activity('Verbose', 'Got to here. 1.')
 
             if return_code_remote == 0: 
 
@@ -351,22 +351,22 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
 
                 remotedefault = remotedefault.decode()
 
-                util.log_activity('Verbose', f'remote default getting checked out is: {remotedefault}.')
+                facade_db.log_activity('Verbose', f'remote default getting checked out is: {remotedefault}.')
 
                 getremotedefault = (f"git -C {repo_base_directory}{row['repo_group_id']}/{row['repo_path']}{row['repo_name']} checkout {remotedefault}")
 
-                util.log_activity('Verbose', f"get remote default command is: \n \n {getremotedefault} \n \n ")
+                facade_db.log_activity('Verbose', f"get remote default command is: \n \n {getremotedefault} \n \n ")
 
                 return_code_remote_default_again = subprocess.Popen([getremotedefault],shell=True).wait()
 
                 if return_code_remote_default_again == 0: 
-                    util.log_activity('Verbose', "local checkout worked.")
+                    facade_db.log_activity('Verbose', "local checkout worked.")
                     cmd = (f"git -C {repo_base_directory}{row['repo_group_id']}/{row['repo_path']}{row['repo_name']} pull")
 
                     return_code = subprocess.Popen([cmd],shell=True).wait()
 
         except Exception as e: 
-            util.log_activity('Verbose', f'Error code on branch change is {e}.')
+            facade_db.log_activity('Verbose', f'Error code on branch change is {e}.')
             pass
 
         finally: 
@@ -381,7 +381,7 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
             break
 
         elif attempt == 0:
-            util.log_activity('Verbose',f"git pull failed, attempting reset and clean for {row['repo_git']}")
+            facade_db.log_activity('Verbose',f"git pull failed, attempting reset and clean for {row['repo_git']}")
 
 #                remotedefault = 'main'
 
@@ -409,7 +409,7 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
 
                 return_message_getremotedefault = subprocess.Popen([getremotedefault],stdout=subprocess.PIPE,shell=True).communicate()[0]
 
-                util.log_activity('Verbose', f'get remote default result: {return_message_getremotedefault}')
+                facade_db.log_activity('Verbose', f'get remote default result: {return_message_getremotedefault}')
 
                 getcurrentbranch = (f"git -C {repo_base_directory}{row['repo_group_id']}/{row['repo_path']}{row['repo_name']} branch")
 
@@ -419,7 +419,7 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
 
                 localdefault = localdefault.decode()
 
-                util.log_activity('Verbose', f'remote default is: {remotedefault}, and localdefault is {localdefault}.') 
+                facade_db.log_activity('Verbose', f'remote default is: {remotedefault}, and localdefault is {localdefault}.') 
 
                 cmd_checkout_default =  (f"git -C {repo_base_directory}{row['repo_group_id']}/{row['repo_path']}{row['repo_name']} checkout {remotedefault}")
 
@@ -437,7 +437,7 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
 
             except Exception as e: 
 
-                util.log_activity('Verbose', f'Second pass failed: {e}.')
+                facade_db.log_activity('Verbose', f'Second pass failed: {e}.')
                 pass 
 
         cmdpull2 = (f"git -C {repo_base_directory}{row['repo_group_id']}/{row['repo_path']}{row['repo_name']} pull")
@@ -454,15 +454,15 @@ def git_repo_updates(augur_db_engine, util, session, repo_base_directory, repo_g
         set_to_analyze = s.sql.text("""UPDATE repo SET repo_status='Analyze' WHERE repo_id=:repo_id and repo_status != 'Empty AND repo_id=:repo_id'
             """).bindparams(repo_id=row['repo_id'])
         
-        augur_db_engine.execute_sql(set_to_analyze)
+        facade_db.execute_sql(set_to_analyze)
 
-        update_repo_log(augur_db_engine, util, row['repo_id'],'Up-to-date')
-        util.log_activity('Verbose',f"Updated {row['repo_git']}")
+        update_repo_log(facade_db, row['repo_id'],'Up-to-date')
+        facade_db.log_activity('Verbose',f"Updated {row['repo_git']}")
 
     else: 
 
-        update_repo_log(augur_db_engine, util, row['repo_id'],f"Failed ({return_code})")
-        util.log_activity('Error',f"Could not update {row['repo_git']}" )
+        update_repo_log(facade_db, row['repo_id'],f"Failed ({return_code})")
+        facade_db.log_activity('Error',f"Could not update {row['repo_git']}" )
 
 
-    util.log_activity('Info','Updating existing repos (complete)')
+    facade_db.log_activity('Info','Updating existing repos (complete)')

@@ -41,10 +41,10 @@ from .facade01config import get_database_args_from_env
 from augur.application.db.models.augur_data import *
 #from augur.tasks.git.util.facade_worker.facade
 
-def update_repo_log(augur_db_engine, util, repos_id,status):
+def update_repo_log(facade_db, repos_id,status):
 
 # Log a repo's fetch status
-	util.log_activity("Info",f"{status} {repos_id}")
+	facade_db.log_activity("Info",f"{status} {repos_id}")
 	#log_message = ("INSERT INTO repos_fetch_log (repos_id,status) "
 	#	"VALUES (%s,%s)")
 	try:
@@ -52,12 +52,12 @@ def update_repo_log(augur_db_engine, util, repos_id,status):
             VALUES (:repo_id,:repo_status)""").bindparams(repo_id=repos_id,repo_status=status)
 
 		#session.insert_data(data,t_repos_fetch_log,['repos_id','status'])
-		augur_db_engine.execute_sql(log_message)
+		facade_db.execute_sql(log_message)
 	except Exception as e:
-		util.logger.error(f"Ran into error in update_repo_log: {e}")
+		facade_db.logger.error(f"Ran into error in update_repo_log: {e}")
 		pass
 
-def trim_commit(augur_db_engine, util, repo_id,commit):
+def trim_commit(facade_db, repo_id,commit):
 
 # Quickly remove a given commit
 
@@ -67,11 +67,11 @@ def trim_commit(augur_db_engine, util, repo_id,commit):
 
 	 
 	 
-	augur_db_engine.execute_sql(remove_commit)
+	facade_db.execute_sql(remove_commit)
 
-	util.log_activity('Debug',f"Trimmed commit: {commit}")
+	facade_db.log_activity('Debug',f"Trimmed commit: {commit}")
 
-def store_working_author(augur_db_engine, util, email):
+def store_working_author(facade_db, email):
 
 # Store the working author during affiliation discovery, in case it is
 # interrupted and needs to be trimmed.
@@ -81,11 +81,11 @@ def store_working_author(augur_db_engine, util, email):
 		WHERE setting = 'working_author'
 		""").bindparams(email=email)
 
-	augur_db_engine.execute_sql(store)
+	facade_db.execute_sql(store)
 
-	util.log_activity('Debug',f"Stored working author: {email}")
+	facade_db.log_activity('Debug',f"Stored working author: {email}")
 
-def trim_author(augur_db_engine, util, email):
+def trim_author(facade_db, email):
 
 # Remove the affiliations associated with an email. Used when an analysis is
 # interrupted during affiliation layering, and the data will be corrupt.
@@ -97,16 +97,16 @@ def trim_author(augur_db_engine, util, email):
 
 	 
 	 
-	augur_db_engine.execute_sql(trim)
+	facade_db.execute_sql(trim)
 
 	trim = s.sql.text("""UPDATE commits
 		SET cmt_committer_affiliation = NULL
 		WHERE cmt_committer_email = :email
 		""").bindparams(email=email)
 
-	augur_db_engine.execute_sql(trim)
+	facade_db.execute_sql(trim)
 
-	store_working_author(augur_db_engine, 'done')
+	store_working_author(facade_db, 'done')
 
-	util.log_activity('Debug',f"Trimmed working author: {email}")
+	facade_db.log_activity('Debug',f"Trimmed working author: {email}")
 

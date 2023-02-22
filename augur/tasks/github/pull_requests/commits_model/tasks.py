@@ -14,6 +14,8 @@ def process_pull_request_commits(repo_git: str) -> None:
 
     with GithubTaskManifest(logger) as manifest:
 
-        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        augur_db = manifest.augur_db
+
+        query = augur_db.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo = execute_session_query(query, 'one')
-        pull_request_commits_model(repo.repo_id, logger, manifest.session, manifest.augur_db_engine, manifest.key_auth)
+        pull_request_commits_model(repo.repo_id, logger, augur_db, manifest.key_auth)

@@ -2,7 +2,6 @@ import logging
 from sqlalchemy.orm import Session
 from augur.application.db.engine import get_db_session
 from augur.application.config import AugurConfig
-from augur.application.db.session import AugurDbEngine
 
 def get_redis_conn_values():
 

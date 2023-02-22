@@ -8,12 +8,12 @@ from augur.application.db.util import execute_session_query
 @celery.task()
 def process_pull_request_files(repo_git: str) -> None:
 
-    from augur.tasks.init.celery_app import engine
-
     logger = logging.getLogger(process_pull_request_files.__name__)
 
     with GithubTaskManifest(logger) as manifest:
+
+        augur_db = manifest.augur_db
         query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo = execute_session_query(query, 'one')
-        pull_request_files_model(repo.repo_id, logger, manifest.session, manifest.augur_db_engine, manifest.key_auth)
+        pull_request_files_model(repo.repo_id, logger, augur_db, manifest.key_auth)
     

@@ -9,11 +9,10 @@ class GithubTaskManifest:
     def __init__(self, logger):
 
         from augur.tasks.init.celery_app import engine
-        from augur.application.db.session import AugurDbEngine
+        from augur.application.db.session import AugurDb
 
-        self.augur_db_engine = AugurDbEngine(logger, engine)
-        self.session = Session(engine)
-        self.key_auth = GithubRandomKeyAuth(self.session, logger)
+        self.augur_db = AugurDb(logger, engine)
+        self.key_auth = GithubRandomKeyAuth(self.augur_db.session, logger)
         self.logger = logger
         self.platform_id = 1
 
@@ -23,6 +22,6 @@ class GithubTaskManifest:
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
 
-        self.session.close()
+        self.augur_db.close()
 
         

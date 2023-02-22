@@ -48,13 +48,22 @@ def remove_null_characters_from_list_of_dicts(data_list, fields):
 
     return data_list
 
-class AugurDbEngine():
+class AugurDb():
 
     def __init__(self, logger, engine):
     
         self.logger = logger
         self.engine = engine
+        self.session = Session(engine)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        self.session.close()
+
+    def close(self):
+        self.session.close()
     
     def execute_sql(self, sql_text):
 

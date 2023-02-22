@@ -24,14 +24,16 @@ def collect_pull_requests(repo_git: str) -> None:
 
     with GithubTaskManifest(logger) as manifest:
 
-        repo_id = manifest.session.query(Repo).filter(
+        augur_db = manifest.augur_db
+
+        repo_id = augur_db.session.query(Repo).filter(
         Repo.repo_git == repo_git).one().repo_id
 
         owner, repo = get_owner_repo(repo_git)
         pr_data = retrieve_all_pr_data(repo_git, logger, manifest.key_auth)
 
         if pr_data:
-            process_pull_requests(pr_data, f"{owner}/{repo}: Pr task", repo_id, logger, manifest.augur_db_engine)
+            process_pull_requests(pr_data, f"{owner}/{repo}: Pr task", repo_id, logger, augur_db)
         else:
             logger.info(f"{owner}/{repo} has no pull requests")
     
@@ -70,7 +72,7 @@ def retrieve_all_pr_data(repo_git: str, logger, key_auth) -> None:
     return all_data
 
     
-def process_pull_requests(pull_requests, task_name, repo_id, logger, augur_db_engine):
+def process_pull_requests(pull_requests, task_name, repo_id, logger, augur_db):
 
     tool_source = "Pr Task"
     tool_version = "2.0"
@@ -83,7 +85,7 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger, augur_db_en
 
     # insert contributors from these prs
     logger.info(f"{task_name}: Inserting {len(contributors)} contributors")
-    augur_db_engine.insert_data(contributors, Contributor, ["cntrb_id"])
+    augur_db.insert_data(contributors, Contributor, ["cntrb_id"])
 
 
     # insert the prs into the pull_requests table. 
@@ -93,7 +95,7 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger, augur_db_en
     pr_natural_keys = ["repo_id", "pr_src_id"]
     pr_return_columns = ["pull_request_id", "pr_url"]
     pr_string_fields = ["pr_src_title", "pr_body"]
-    pr_return_data = augur_db_engine.insert_data(pr_dicts, PullRequest, pr_natural_keys, 
+    pr_return_data = augur_db.insert_data(pr_dicts, PullRequest, pr_natural_keys, 
                             return_columns=pr_return_columns, string_fields=pr_string_fields)
 
     if pr_return_data is None:
@@ -132,24 +134,24 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger, augur_db_en
     # we are using pr_src_id and pull_request_id to determine if the label is already in the database.
     pr_label_natural_keys = ['pr_src_id', 'pull_request_id']
     pr_label_string_fields = ["pr_src_description"]
-    augur_db_engine.insert_data(pr_label_dicts, PullRequestLabel, pr_label_natural_keys, string_fields=pr_label_string_fields)
+    augur_db.insert_data(pr_label_dicts, PullRequestLabel, pr_label_natural_keys, string_fields=pr_label_string_fields)
 
     # inserting pr assignees
     # we are using pr_assignee_src_id and pull_request_id to determine if the label is already in the database.
     pr_assignee_natural_keys = ['pr_assignee_src_id', 'pull_request_id']
-    augur_db_engine.insert_data(pr_assignee_dicts, PullRequestAssignee, pr_assignee_natural_keys)
+    augur_db.insert_data(pr_assignee_dicts, PullRequestAssignee, pr_assignee_natural_keys)
 
 
     # inserting pr requested reviewers
     # we are using pr_src_id and pull_request_id to determine if the label is already in the database.
     pr_reviewer_natural_keys = ["pull_request_id", "pr_reviewer_src_id"]
-    augur_db_engine.insert_data(pr_reviewer_dicts, PullRequestReviewer, pr_reviewer_natural_keys)
+    augur_db.insert_data(pr_reviewer_dicts, PullRequestReviewer, pr_reviewer_natural_keys)
     
     # inserting pr metadata
     # we are using pull_request_id, pr_head_or_base, and pr_sha to determine if the label is already in the database.
     pr_metadata_natural_keys = ['pull_request_id', 'pr_head_or_base', 'pr_sha']
     pr_metadata_string_fields = ["pr_src_meta_label"]
-    augur_db_engine.insert_data(pr_metadata_dicts, PullRequestMeta,
+    augur_db.insert_data(pr_metadata_dicts, PullRequestMeta,
                         pr_metadata_natural_keys, string_fields=pr_metadata_string_fields)
 
 
@@ -205,8 +207,6 @@ def process_pull_requests(pull_requests, task_name, repo_id, logger, augur_db_en
 @celery.task
 def pull_request_review_comments(repo_git: str) -> None:
     
-    from augur.tasks.init.celery_app import engine
-
     owner, repo = get_owner_repo(repo_git)
 
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments"
@@ -216,6 +216,8 @@ def pull_request_review_comments(repo_git: str) -> None:
     
     # define GithubTaskSession to handle insertions, and store oauth keys 
     with GithubTaskManifest(logger) as manifest:
+
+        augur_db = manifest.augur_db
 
         # returns an iterable of all issues at this url (this essentially means you can treat the issues variable as a list of the issues)
         pr_review_comments = GithubPaginator(url, manifest.key_auth, logger)
@@ -267,7 +269,7 @@ def pull_request_review_comments(repo_git: str) -> None:
         logger.info(f"Inserting {len(pr_review_comment_dicts)} pr review comments")
         message_natural_keys = ["platform_msg_id"]
         message_return_columns = ["msg_id", "platform_msg_id"]
-        message_return_data = manifest.augur_db_engine.insert_data(pr_review_comment_dicts, Message, message_natural_keys, message_return_columns)
+        message_return_data = augur_db.insert_data(pr_review_comment_dicts, Message, message_natural_keys, message_return_columns)
 
 
         pr_review_message_ref_insert_data = []
@@ -293,14 +295,12 @@ def pull_request_review_comments(repo_git: str) -> None:
 
         logger.info(f"Inserting {len(pr_review_message_ref_insert_data)} pr review refs")
         pr_comment_ref_natural_keys = ["pr_review_msg_src_id"]
-        manifest.augur_db_engine.insert_data(pr_review_message_ref_insert_data, PullRequestReviewMessageRef, pr_comment_ref_natural_keys)
+        augur_db.insert_data(pr_review_message_ref_insert_data, PullRequestReviewMessageRef, pr_comment_ref_natural_keys)
 
 
 # do this task after others because we need to add the multi threading like we did it before
 @celery.task
 def pull_request_reviews(repo_git: str, pr_number_list) -> None:
-
-    from augur.tasks.init.celery_app import engine
 
     logger = logging.getLogger(pull_request_reviews.__name__)
 

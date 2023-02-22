@@ -100,11 +100,13 @@ def get_db_engine(**kwargs):
         engine.dispose()
 
 @contextmanager
-def get_db_session():
+def get_db_session(engine=None):
     from sqlalchemy.orm import Session
 
-    db_conn_string = get_database_string()
-    engine = create_database_engine(db_conn_string, pool_size=1, max_overflow=0)
+    if not engine:
+        db_conn_string = get_database_string()
+        engine = create_database_engine(db_conn_string, pool_size=1, max_overflow=0)
+        
     session = Session(engine)
 
     try:

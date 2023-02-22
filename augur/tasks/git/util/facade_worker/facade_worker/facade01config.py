@@ -46,6 +46,7 @@ from psycopg2.errors import DeadlockDetected
 from augur.tasks.github.util.github_task_session import *
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
+from augur.application.db.session import AugurDb
 from logging import Logger
 
 logger = logging.getLogger(__name__)
@@ -158,7 +159,7 @@ def get_database_args_from_env():
 #         query = s.sql.text("""SELECT value FROM settings WHERE setting=:settingParam ORDER BY
 #             last_modified DESC LIMIT 1""").bindparams(settingParam=setting)
         
-#         result = self.augur_db_engine.execute_sql(query).fetchone()
+#         result = self.facade_db.execute_sql(query).fetchone()
 #         print(result)
 #         return result[0]
         
@@ -167,7 +168,7 @@ def get_database_args_from_env():
 #         query = s.sql.text("""UPDATE settings SET value=:statusParam WHERE setting='utility_status'
 #             """).bindparams(statusParam=status)
         
-#         self.augur_db_engine.execute_sql(query)
+#         self.facade_db.execute_sql(query)
 
 #     def log_activity(self, level, status):
 #         # Log an activity based upon urgency and user's preference.  If the log level is
@@ -184,7 +185,7 @@ def get_database_args_from_env():
 #             """).bindparams(levelParam=level,statusParam=status)
 
 #         try:
-#             self.augur_db_engine.execute_sql(query)
+#             self.facade_db.execute_sql(query)
 #         except Exception as e:
 #             self.logger.error(f"Error encountered: {e}")
 #             raise e
@@ -195,7 +196,7 @@ def get_database_args_from_env():
 #             VALUES (:repo_id,:repo_status)""").bindparams(repo_id=repos_id,repo_status=status)
         
 #         try:
-#             self.augur_db_engine.execute_sql(log_message)
+#             self.facade_db.execute_sql(log_message)
 #         except:
 #             pass
 #     def insert_or_update_data(self, query, **bind_args)-> None:
@@ -214,9 +215,9 @@ def get_database_args_from_env():
 #             try:
 #                 if bind_args:
 #                     #self.cfg.cursor.execute(query, params)
-#                     self.augur_db_engine.execute_sql(query.bindparams(**bind_args))
+#                     self.facade_db.execute_sql(query.bindparams(**bind_args))
 #                 else:
-#                     self.augur_db_engine.execute_sql(query)
+#                     self.facade_db.execute_sql(query)
 #                 break
 #             except OperationalError as e:
 #                 # print(str(e).split("Process")[1].split(";")[0])
@@ -242,60 +243,14 @@ def get_database_args_from_env():
 #     def inc_repos_processed(self):
 #         self.repos_processed += 1
 
-class FacadeTaskUtility:
+class FacadeDb(AugurDb):
 
-    def __init__(self, augur_db_engine, logger) -> None:
-        
-        self.augur_db_engine = augur_db_engine
-        self.logger = logger
+    def __init__(self, logger, engine) -> None:
+
         self.repos_processed = 0
 
-    def get_setting(self,setting):
-        #Get a setting from the db
+        super().__init__(logger, engine)
 
-        query = s.sql.text("""SELECT value FROM settings WHERE setting=:settingParam ORDER BY
-            last_modified DESC LIMIT 1""").bindparams(settingParam=setting)
-        
-        result = self.augur_db_engine.execute_sql(query).fetchone()
-        print(result)
-        return result[0]
-        
-
-    def update_status(self, status):
-        query = s.sql.text("""UPDATE settings SET value=:statusParam WHERE setting='utility_status'
-            """).bindparams(statusParam=status)
-        
-        self.augur_db_engine.execute_sql(query)
-
-    def log_activity(self, level, status):
-        # Log an activity based upon urgency and user's preference.  If the log level is
-        # "Debug", then just print it and don't save it in the database.
-        log_options = ('Error','Quiet','Info','Verbose','Debug')
-        self.logger.info(f"* {status}\n")
-
-        #Return if only debug 
-        if level == 'Debug':
-            return
-        
-        #Else write to database
-        query = s.sql.text("""INSERT INTO utility_log (level,status) VALUES (:levelParam,:statusParam)
-            """).bindparams(levelParam=level,statusParam=status)
-
-        try:
-            self.augur_db_engine.execute_sql(query)
-        except Exception as e:
-            self.logger.error(f"Error encountered: {e}")
-            raise e
-    def update_repo_log(self,repos_id,status):
-        self.logger.info(f"{status} {repos_id}")
-
-        log_message = s.sql.text("""INSERT INTO repos_fetch_log (repos_id,status) 
-            VALUES (:repo_id,:repo_status)""").bindparams(repo_id=repos_id,repo_status=status)
-        
-        try:
-            self.augur_db_engine.execute_sql(log_message)
-        except:
-            pass
 
     def insert_or_update_data(self, query, **bind_args)-> None:
         """Provide deadlock detection for postgres updates, inserts, and deletions for facade.
@@ -313,9 +268,9 @@ class FacadeTaskUtility:
             try:
                 if bind_args:
                     #self.cfg.cursor.execute(query, params)
-                    self.augur_db_engine.execute_sql(query.bindparams(**bind_args))
+                    self.execute_sql(query.bindparams(**bind_args))
                 else:
-                    self.augur_db_engine.execute_sql(query)
+                    self.execute_sql(query)
                 break
             except OperationalError as e:
                 # print(str(e).split("Process")[1].split(";")[0])
@@ -338,8 +293,59 @@ class FacadeTaskUtility:
             self.logger.error(f"Made it through even though Deadlock was detected")
                     
             return
+
+    
+    def get_setting(self,setting):
+        #Get a setting from the db
+
+        query = s.sql.text("""SELECT value FROM settings WHERE setting=:settingParam ORDER BY
+            last_modified DESC LIMIT 1""").bindparams(settingParam=setting)
+        
+        result = self.execute_sql(query).fetchone()
+        print(result)
+        return result[0]
+        
+
+    def update_status(self, status):
+        query = s.sql.text("""UPDATE settings SET value=:statusParam WHERE setting='utility_status'
+            """).bindparams(statusParam=status)
+        
+        self.execute_sql(query)
+
+    def log_activity(self, level, status):
+        # Log an activity based upon urgency and user's preference.  If the log level is
+        # "Debug", then just print it and don't save it in the database.
+        log_options = ('Error','Quiet','Info','Verbose','Debug')
+        self.logger.info(f"* {status}\n")
+
+        #Return if only debug 
+        if level == 'Debug':
+            return
+        
+        #Else write to database
+        query = s.sql.text("""INSERT INTO utility_log (level,status) VALUES (:levelParam,:statusParam)
+            """).bindparams(levelParam=level,statusParam=status)
+
+        try:
+            self.execute_sql(query)
+        except Exception as e:
+            self.logger.error(f"Error encountered: {e}")
+            raise e
+    def update_repo_log(self,repos_id,status):
+        self.logger.info(f"{status} {repos_id}")
+
+        log_message = s.sql.text("""INSERT INTO repos_fetch_log (repos_id,status) 
+            VALUES (:repo_id,:repo_status)""").bindparams(repo_id=repos_id,repo_status=status)
+        
+        try:
+            self.execute_sql(log_message)
+        except:
+            pass
+
+
     def inc_repos_processed(self):
         self.repos_processed += 1
+
 
 
 
@@ -369,14 +375,10 @@ class FacadeTaskManifest:
     def __init__(self,logger: Logger):
 
         from augur.tasks.init.celery_app import engine
-        from augur.application.db.session import AugurDbEngine
-        from sqlalchemy.orm import Session
-
-        self.augur_db_engine = AugurDbEngine(logger, engine)
-        self.session = Session(engine)
-        self.util = FacadeTaskUtility(self.augur_db_engine, logger)
+    
+        self.facade_db = FacadeDb(logger, engine)
         
-        worker_options = AugurConfig(logger, self.session).get_section("Facade")
+        worker_options = AugurConfig(logger, self.facade_db.session).get_section("Facade")
 
         self.limited_run = worker_options["limited_run"]
         self.delete_marked_repos = worker_options["delete_marked_repos"]
@@ -404,17 +406,17 @@ class FacadeTaskManifest:
             self.repo_base_directory = None
 
         # Determine if it's safe to start the script
-        current_status = self.util.get_setting('utility_status')
+        current_status = self.facade_db.get_setting('utility_status')
 
         if len(self.repo_base_directory) == 0:
-            self.util.log_activity('Error','No base directory. It is unsafe to continue.')
+            self.facade_db.log_activity('Error','No base directory. It is unsafe to continue.')
             raise Exception('Failed: No base directory')
 
     def __enter__(self):
         return self
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
-        self.session.close()
+        self.facade_db.close()
 
 
 

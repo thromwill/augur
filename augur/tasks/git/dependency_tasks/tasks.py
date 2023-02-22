@@ -18,5 +18,5 @@ def process_dependency_metrics(repo_git):
         query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo = execute_session_query(query,'one')
 
-        deps_model(manifest.session, manifest.augur_db_engine, logger, repo.repo_id)
+        deps_model(manifest.facade_db, logger, repo.repo_id)
         

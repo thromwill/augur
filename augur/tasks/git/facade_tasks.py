@@ -69,20 +69,18 @@ def facade_analysis_init_facade_task():
 
     logger = logging.getLogger(facade_analysis_init_facade_task.__name__)
     with FacadeTaskManifest(logger) as manifest:
-        manifest.util.update_status('Running analysis')
-        manifest.util.log_activity('Info',f"Beginning analysis.")
+        manifest.facade_db.update_status('Running analysis')
+        manifest.facade_db.log_activity('Info',f"Beginning analysis.")
 
 @celery.task
 def grab_comitters(repo_id,platform="github"):
-
-    from augur.tasks.init.celery_app import engine
 
     logger = logging.getLogger(grab_comitters.__name__)
 
     with GithubTaskManifest(logger) as manifest:
 
         try:
-            grab_committer_list(manifest.session, manifest.augur_db_engine, manifest.key_auth, logger, manifest.platform_id, repo_id,platform)
+            grab_committer_list(manifest.facade_db, manifest.key_auth, logger, manifest.platform_id, repo_id,platform)
         except Exception as e:
             logger.error(f"Could not grab committers from github endpoint!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
 
@@ -94,6 +92,8 @@ def trim_commits_facade_task(repo_id):
 
     with FacadeTaskManifest(logger) as manifest:
 
+        facade_db = manifest.facade_db
+
         def update_analysis_log(repos_id,status):
 
         # Log a repo's analysis status
@@ -102,12 +102,12 @@ def trim_commits_facade_task(repo_id):
                 VALUES (:repo_id,:status)""").bindparams(repo_id=repos_id,status=status)
 
             try:
-                manifest.augur_db_engine.execute_sql(log_message)
+                facade_db.execute_sql(log_message)
             except:
                 pass
 
 
-        manifest.util.inc_repos_processed()
+        facade_db.inc_repos_processed()
         update_analysis_log(repo_id,"Beginning analysis.")
         # First we check to see if the previous analysis didn't complete
 
@@ -115,21 +115,21 @@ def trim_commits_facade_task(repo_id):
             """).bindparams(repo_id=repo_id)
 
         try:
-            working_commits = manifest.augur_db_engine.fetchall_data_from_sql_text(get_status)
+            working_commits = facade_db.fetchall_data_from_sql_text(get_status)
         except:
             working_commits = []
 
         # If there's a commit still there, the previous run was interrupted and
         # the commit data may be incomplete. It should be trimmed, just in case.
         for commit in working_commits:
-            trim_commit(manifest.augur_deb_engine, manifest.util, repo_id,commit['working_commit'])
+            trim_commit(facade_db, repo_id,commit['working_commit'])
 
             # Remove the working commit.
             remove_commit = s.sql.text("""DELETE FROM working_commits
                 WHERE repos_id = :repo_id AND 
                 working_commit = :commit""").bindparams(repo_id=repo_id,commit=commit['working_commit'])
-            manifest.augur_db_engine.execute_sql(remove_commit)
-            manifest.util.log_activity('Debug',f"Removed working commit: {commit['working_commit']}")
+            facade_db.execute_sql(remove_commit)
+            manifest.facade_db.log_activity('Debug',f"Removed working commit: {commit['working_commit']}")
 
         # Start the main analysis
 
@@ -143,7 +143,8 @@ def trim_commits_post_analysis_facade_task(repo_id):
     
 
     with FacadeTaskManifest(logger) as manifest:
-        start_date = manifest.util.get_setting('start_date')
+        facade_db = manifest.facade_db
+        start_date = manifest.facade_db.get_setting('start_date')
         def update_analysis_log(repos_id,status):
 
             # Log a repo's analysis status
@@ -152,11 +153,11 @@ def trim_commits_post_analysis_facade_task(repo_id):
                 VALUES (:repo_id,:status)""").bindparams(repo_id=repos_id,status=status)
 
             
-            manifest.augur_db_engine.execute_sql(log_message)
+            facade_db.execute_sql(log_message)
         
         logger.info(f"Generating sequence for repo {repo_id}")
 
-        query = manifest.session.query(Repo).filter(Repo.repo_id == repo_id)
+        query = facade_db.session.query(Repo).filter(Repo.repo_id == repo_id)
         repo = execute_session_query(query, 'one')
 
         #Get the huge list of commits to process.
@@ -185,16 +186,16 @@ def trim_commits_post_analysis_facade_task(repo_id):
         #session.cfg.cursor.execute(find_existing, (repo[0], ))
 
         try:
-            for commit in manifest.augur_db_engine.fetchall_data_from_sql_text(find_existing):#list(session.cfg.cursor):
+            for commit in facade_db.fetchall_data_from_sql_text(find_existing):#list(session.cfg.cursor):
                 existing_commits.add(commit['cmt_commit_hash'])
         except:
-            manifest.util.log_activity('Info', 'list(cfg.cursor) returned an error')
+            manifest.facade_db.log_activity('Info', 'list(cfg.cursor) returned an error')
 
         # Find missing commits and add them
 
         missing_commits = parent_commits - existing_commits
 
-        manifest.util.log_activity('Debug',f"Commits missing from repo {repo_id}: {len(missing_commits)}")
+        manifest.facade_db.log_activity('Debug',f"Commits missing from repo {repo_id}: {len(missing_commits)}")
         
         # Find commits which are out of the analysis range
 
@@ -204,17 +205,17 @@ def trim_commits_post_analysis_facade_task(repo_id):
 
         update_analysis_log(repo_id,'Beginning to trim commits')
 
-        manifest.util.log_activity('Debug',f"Commits to be trimmed from repo {repo_id}: {len(trimmed_commits)}")
+        manifest.facade_db.log_activity('Debug',f"Commits to be trimmed from repo {repo_id}: {len(trimmed_commits)}")
 
 
 
         for commit in trimmed_commits:
-            trim_commit(manifest.augur_db_engine, manifest.util,repo_id,commit)
+            trim_commit(facade_db,repo_id,commit)
         
         set_complete = s.sql.text("""UPDATE repo SET repo_status='Complete' WHERE repo_id=:repo_id and repo_status != 'Empty'
             """).bindparams(repo_id=repo_id)
 
-        manifest.augur_db_engine.execute_sql(set_complete)
+        facade_db.execute_sql(set_complete)
 
         update_analysis_log(repo_id,'Commit trimming complete')
 
@@ -227,7 +228,7 @@ def facade_analysis_end_facade_task():
 
     logger = logging.getLogger(facade_analysis_end_facade_task.__name__)
     with FacadeTaskManifest(logger) as manifest:
-        manifest.util.log_activity('Info','Running analysis (complete)')
+        manifest.facade_db.log_activity('Info','Running analysis (complete)')
 
 
 
@@ -236,8 +237,8 @@ def facade_start_contrib_analysis_task():
 
     logger = logging.getLogger(facade_start_contrib_analysis_task.__name__)
     with FacadeTaskManifest(logger) as manifest:
-        manifest.util.update_status('Updating Contributors')
-        manifest.util.log_activity('Info', 'Updating Contributors with commits')
+        manifest.facade_db.update_status('Updating Contributors')
+        manifest.facade_db.log_activity('Info', 'Updating Contributors with commits')
 
 
 #enable celery multithreading
@@ -249,11 +250,12 @@ def analyze_commits_in_parallel(repo_id, multithreaded: bool)-> None:
     #create new session for celery thread.
     logger = logging.getLogger(analyze_commits_in_parallel.__name__)
     with FacadeTaskManifest(logger) as manifest:
-        start_date = manifest.util.get_setting('start_date')
+        facade_db = manifest.facade_db
+        start_date = manifest.facade_db.get_setting('start_date')
 
         logger.info(f"Generating sequence for repo {repo_id}")
         
-        query = manifest.session.query(Repo).filter(Repo.repo_id == repo_id)
+        query = facade_db.session.query(Repo).filter(Repo.repo_id == repo_id)
         repo = execute_session_query(query, 'one')
 
         #Get the huge list of commits to process.
@@ -282,16 +284,16 @@ def analyze_commits_in_parallel(repo_id, multithreaded: bool)-> None:
         #session.cfg.cursor.execute(find_existing, (repo[0], ))
 
         try:
-            for commit in manifest.augur_db_engine.fetchall_data_from_sql_text(find_existing):#list(session.cfg.cursor):
+            for commit in facade_db.fetchall_data_from_sql_text(find_existing):#list(session.cfg.cursor):
                 existing_commits.add(commit['cmt_commit_hash'])
         except:
-            manifest.util.log_activity('Info', 'list(cfg.cursor) returned an error')
+            manifest.facade_db.log_activity('Info', 'list(cfg.cursor) returned an error')
 
         # Find missing commits and add them
 
         missing_commits = parent_commits - existing_commits
 
-        manifest.util.log_activity('Debug',f"Commits missing from repo {repo_id}: {len(missing_commits)}")
+        manifest.facade_db.log_activity('Debug',f"Commits missing from repo {repo_id}: {len(missing_commits)}")
         
         queue = []
         if len(missing_commits) > 0:
@@ -316,7 +318,7 @@ def analyze_commits_in_parallel(repo_id, multithreaded: bool)-> None:
             if (count + 1) % quarterQueue == 0:
                 logger.info(f"Progress through current analysis queue is {(count / len(queue)) * 100}%")
 
-            query = manifest.session.query(Repo).filter(Repo.repo_id == repo_id)
+            query = facade_db.session.query(Repo).filter(Repo.repo_id == repo_id)
             repo = execute_session_query(query,'one')
 
         logger.info(f"Got to analysis!")
@@ -325,7 +327,7 @@ def analyze_commits_in_parallel(repo_id, multithreaded: bool)-> None:
 
             repo_loc = (f"{manifest.repo_base_directory}{repo.repo_group_id}/{repo.repo_path}{repo.repo_name}/.git")    
 
-            analyze_commit(manifest.augur_db_engine, manifest.util, logger, repo_id, repo_loc, commitTuple)
+            analyze_commit(facade_db, logger, repo_id, repo_loc, commitTuple)
 
         logger.info("Analysis complete")
     return
@@ -336,14 +338,14 @@ def nuke_affiliations_facade_task():
     logger = logging.getLogger(nuke_affiliations_facade_task.__name__)
     
     with FacadeTaskManifest(logger) as manifest:
-        nuke_affiliations(manifest.util, manifest.augur_db_engine)
+        nuke_affiliations(manifest.facade_db)
 
 @celery.task
 def fill_empty_affiliations_facade_task():
 
     logger = logging.getLogger(fill_empty_affiliations_facade_task.__name__)
     with FacadeTaskManifest(logger) as manifest:
-        fill_empty_affiliations(manifest.augur_db_engine, manifest.util)
+        fill_empty_affiliations(manifest.facade_db)
 
 @celery.task
 def invalidate_caches_facade_task():
@@ -351,7 +353,7 @@ def invalidate_caches_facade_task():
     logger = logging.getLogger(invalidate_caches_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        invalidate_caches(manifest.augur_db_engine, manifest.util)
+        invalidate_caches(manifest.facade_db)
 
 @celery.task
 def rebuild_unknown_affiliation_and_web_caches_facade_task():
@@ -360,7 +362,7 @@ def rebuild_unknown_affiliation_and_web_caches_facade_task():
     
     with FacadeTaskManifest(logger) as manifest:
         metadata = {"tool_source": manifest.tool_source, "tool_version": manifest.tool_version, "data_source": manifest.data_source}
-        rebuild_unknown_affiliation_and_web_caches(manifest.augur_db_engine, manifest.util, metadata)
+        rebuild_unknown_affiliation_and_web_caches(manifest.facade_db, metadata)
 
 @celery.task
 def force_repo_analysis_facade_task(repo_git):
@@ -368,7 +370,7 @@ def force_repo_analysis_facade_task(repo_git):
     logger = logging.getLogger(force_repo_analysis_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        force_repo_analysis(manifest.augur_db_engine, manifest.util,repo_git)
+        force_repo_analysis(manifest.facade_db,repo_git)
 
 @celery.task
 def git_repo_cleanup_facade_task(repo_git):
@@ -376,7 +378,7 @@ def git_repo_cleanup_facade_task(repo_git):
     logger = logging.getLogger(git_repo_cleanup_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        git_repo_cleanup(manifest.augur_db_engine, manifest.util, manifest.session, manifest.repo_base_directory, repo_git)
+        git_repo_cleanup(manifest.facade_db, manifest.repo_base_directory, repo_git)
 
 @celery.task
 def git_repo_initialize_facade_task(repo_git):
@@ -384,7 +386,7 @@ def git_repo_initialize_facade_task(repo_git):
     logger = logging.getLogger(git_repo_initialize_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        git_repo_initialize(manifest.augur_db_engine, manifest.util, manifest.session, manifest.repo_base_directory, repo_git)
+        git_repo_initialize(manifest.facade_db, manifest.repo_base_directory, repo_git)
 
 @celery.task
 def check_for_repo_updates_facade_task(repo_git):
@@ -392,7 +394,7 @@ def check_for_repo_updates_facade_task(repo_git):
     logger = logging.getLogger(check_for_repo_updates_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        check_for_repo_updates(manifest.augur_db_engine, manifest.util, repo_git)
+        check_for_repo_updates(manifest.facade_db, repo_git)
 
 @celery.task
 def force_repo_updates_facade_task(repo_git):
@@ -400,7 +402,7 @@ def force_repo_updates_facade_task(repo_git):
     logger = logging.getLogger(force_repo_updates_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        force_repo_updates(manifest.augur_db_engine, manifest.util, repo_git)
+        force_repo_updates(manifest.facade_db, repo_git)
 
 @celery.task
 def git_repo_updates_facade_task(repo_git):
@@ -408,10 +410,10 @@ def git_repo_updates_facade_task(repo_git):
     logger = logging.getLogger(git_repo_updates_facade_task.__name__)
 
     with FacadeTaskManifest(logger) as manifest:
-        git_repo_updates(manifest.augur_db_engine, manifest.util, manifest.session, manifest.repo_base_directory, repo_git)
+        git_repo_updates(manifest.facade_db, manifest.repo_base_directory, repo_git)
 
 
-def generate_analysis_sequence(logger,repo_git, augur_db_engine, util):
+def generate_analysis_sequence(logger,repo_git, facade_db):
     """Run the analysis by looping over all active repos. For each repo, we retrieve
     the list of commits which lead to HEAD. If any are missing from the database,
     they are filled in. Then we check to see if any commits in the database are
@@ -428,9 +430,9 @@ def generate_analysis_sequence(logger,repo_git, augur_db_engine, util):
 
     repo_list = s.sql.text("""SELECT repo_id,repo_group_id,repo_path,repo_name FROM repo 
     WHERE repo_git=:value""").bindparams(value=repo_git)
-    repos = augur_db_engine.fetchall_data_from_sql_text(repo_list)
+    repos = facade_db.fetchall_data_from_sql_text(repo_list)
 
-    start_date = util.get_setting('start_date')
+    start_date = facade_db.get_setting('start_date')
 
     repo_ids = [repo['repo_id'] for repo in repos]
 
@@ -458,7 +460,7 @@ def generate_analysis_sequence(logger,repo_git, augur_db_engine, util):
 
 
 
-def generate_contributor_sequence(logger,repo_git, augur_db_engine):
+def generate_contributor_sequence(logger,repo_git, facade_db):
     
     contributor_sequence = []
     #all_repo_ids = []
@@ -468,7 +470,7 @@ def generate_contributor_sequence(logger,repo_git, augur_db_engine):
     query = s.sql.text("""SELECT repo_id FROM repo
     WHERE repo_git=:value""").bindparams(value=repo_git)
 
-    repo = augur_db_engine.execute_sql(query).fetchone()
+    repo = facade_db.execute_sql(query).fetchone()
     logger.info(f"repo: {repo}")
     repo_id = repo[0]
     #pdb.set_trace()
@@ -532,10 +534,10 @@ def generate_facade_chain(logger,repo_git):
             facade_sequence.append(force_repo_analysis_facade_task.si(repo_git))
 
         #Generate commit analysis task order.
-        facade_sequence.extend(generate_analysis_sequence(logger,repo_git,manifest.augur_db_engine, manifest.util))
+        facade_sequence.extend(generate_analysis_sequence(logger,repo_git,manifest.facade_db))
 
         #Generate contributor analysis task group.
-        facade_sequence.append(generate_contributor_sequence(logger,repo_git, manifest.augur_db_engine))
+        facade_sequence.append(generate_contributor_sequence(logger,repo_git, manifest.facade_db))
 
         
         logger.info(f"Facade sequence: {facade_sequence}")

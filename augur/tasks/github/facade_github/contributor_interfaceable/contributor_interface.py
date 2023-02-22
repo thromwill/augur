@@ -161,13 +161,13 @@ def create_endpoint_from_name(contributor):
 
     return url
 
-def insert_alias(session, augur_db_engine, logger, contributor, email):
+def insert_alias(augur_db, logger, contributor, email):
     # Insert cntrb_id and email of the corresponding record into the alias table
     # Another database call to get the contributor id is needed because its an autokeyincrement that is accessed by multiple workers
     # Same principle as enrich_cntrb_id method.
 
     
-    query = session.query(Contributor).filter_by(gh_user_id=contributor["gh_user_id"])
+    query = augur_db.session.query(Contributor).filter_by(gh_user_id=contributor["gh_user_id"])
     contributor_table_data = execute_session_query(query, 'all')
     # self.logger.info(f"Contributor query: {contributor_table_data}")
 
@@ -199,7 +199,7 @@ def insert_alias(session, augur_db_engine, logger, contributor, email):
 
     # Insert new alias
     
-    augur_db_engine.insert_data(alias, ContributorsAlias, ['alias_email'])
+    augur_db.insert_data(alias, ContributorsAlias, ['alias_email'])
     
 
     return
@@ -278,7 +278,7 @@ def update_contributor(self, cntrb, max_attempts=3):
 #   \return A dictionary of response data from github with potential logins on success.
 #           None on failure
 
-def fetch_username_from_email(augur_db_engine, key_auth, logger, commit):
+def fetch_username_from_email(augur_db, key_auth, logger, commit):
 
     # Default to failed state
     login_json = None
@@ -326,7 +326,7 @@ def fetch_username_from_email(augur_db_engine, key_auth, logger, commit):
         try:
             
             unresolved_natural_keys = ['email']
-            augur_db_engine.insert_data(unresolved, UnresolvedCommitEmail, unresolved_natural_keys)
+            augur_db.insert_data(unresolved, UnresolvedCommitEmail, unresolved_natural_keys)
         except Exception as e:
             logger.info(
                 f"Could not create new unresolved email {unresolved['email']}. Error: {e}")
@@ -340,11 +340,11 @@ def fetch_username_from_email(augur_db_engine, key_auth, logger, commit):
 # Method to return the login given commit data using the supplemental data in the commit
 #   -email
 #   -name
-def get_login_with_supplemental_data(augur_db_engine, logger, key_auth, commit_data):
+def get_login_with_supplemental_data(augur_db, logger, key_auth, commit_data):
 
     # Try to get login from all possible emails
     # Is None upon failure.
-    login_json = fetch_username_from_email(augur_db_engine, key_auth, logger, commit_data)
+    login_json = fetch_username_from_email(augur_db, key_auth, logger, commit_data)
 
     # Check if the email result got anything, if it failed try a name search.
     if login_json is None or 'total_count' not in login_json or login_json['total_count'] == 0:

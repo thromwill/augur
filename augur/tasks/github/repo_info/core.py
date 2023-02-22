@@ -100,7 +100,7 @@ def grab_repo_info_from_graphql_endpoint(key_auth,query, logger):
     return data
     
 
-def repo_info_model(key_auth, repo_orm_obj, logger, augur_db_engine):
+def repo_info_model(key_auth, repo_orm_obj, logger, augur_db):
     logger.info("Beginning filling the repo_info model for repo: " + repo_orm_obj.repo_git + "\n")
 
     owner, repo = get_owner_repo(repo_orm_obj.repo_git)
@@ -286,7 +286,7 @@ def repo_info_model(key_auth, repo_orm_obj, logger, augur_db_engine):
             :tool_source, :tool_version, :data_source)
 			""").bindparams(**rep_inf)
 
-    augur_db_engine.execute_sql(insert_statement)
+    augur_db.execute_sql(insert_statement)
 
     # Note that the addition of information about where a repository may be forked from, and whether a repository is archived, updates the `repo` table, not the `repo_info` table.
     forked = is_forked(key_auth, owner, repo, logger)
@@ -299,7 +299,7 @@ def repo_info_model(key_auth, repo_orm_obj, logger, augur_db_engine):
         archived = 0
 
     update_repo_data = s.sql.text("""UPDATE repo SET forked_from=:forked, repo_archived=:archived, repo_archived_date_collected=:archived_date_collected WHERE repo_id=:repo_id""").bindparams(forked=forked, archived=archived, archived_date_collected=archived_date_collected, repo_id=repo_orm_obj.repo_id)
-    augur_db_engine.execute_sql(update_repo_data)
+    augur_db.execute_sql(update_repo_data)
 
     logger.info(f"Inserted info for {owner}/{repo}\n")
 

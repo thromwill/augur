@@ -24,7 +24,7 @@ from augur import instance_id
 from augur.tasks.start_tasks import augur_collection_monitor, CollectionState
 from augur.tasks.init.redis_connection import redis_connection 
 from augur.application.db.models import Repo, CollectionStatus
-from augur.application.db.session import AugurDbEngine
+from augur.application.db.session import AugurDb
 from augur.application.db.engine import get_db_session, get_db_engine
 from augur.application.db.util import execute_session_query
 from augur.application.logs import AugurLogger
@@ -41,7 +41,7 @@ def create_collection_status(logger):
 
     with get_db_engine() as engine:
 
-        augur_db_engine = AugurDbEngine(logger, engine)
+        augur_db_engine = AugurDb(logger, engine)
 
         query = s.sql.text("""
         SELECT repo_id FROM repo WHERE repo_id NOT IN (SELECT repo_id FROM augur_operations.collection_status)

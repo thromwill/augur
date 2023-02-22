@@ -11,7 +11,8 @@ def collect_repo_info(repo_git: str):
     logger = logging.getLogger(collect_repo_info.__name__)
 
     with GithubTaskManifest(logger) as manifest:
-        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        augur_db = manifest.augur_db
+        query = augur_db.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo = execute_session_query(query, 'one')
-        repo_info_model(manifest.key_auth, repo, logger, manifest.augur_db_engine)
+        repo_info_model(manifest.key_auth, repo, logger, augur_db)
     

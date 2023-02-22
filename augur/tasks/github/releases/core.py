@@ -71,11 +71,11 @@ def get_release_inf(repo_id, release, tag_only):
     return release_inf
 
 
-def insert_release(augur_db_engine, session, repo_id, owner, release, logger, tag_only = False):
+def insert_release(augur_db, repo_id, owner, release, logger, tag_only = False):
 
     # Get current table values
     logger.info('Getting release table values\n')
-    query = session.query(Release.release_id).filter(Release.repo_id == repo_id)
+    query = augur_db.session.query(Release.release_id).filter(Release.repo_id == repo_id)
     release_id_data = execute_session_query(query, 'all')#pd.read_sql(release_id_data_sql, self.db, params={'repo_id': repo_id})
     release_id_data = [str(r_id).strip() for r_id in release_id_data]#release_id_data.apply(lambda x: x.str.strip())
 
@@ -84,7 +84,7 @@ def insert_release(augur_db_engine, session, repo_id, owner, release, logger, ta
     release_inf = get_release_inf(repo_id, release, tag_only)
 
     #Do an upsert
-    augur_db_engine.insert_data(release_inf,Release,['release_id'])
+    augur_db.insert_data(release_inf,Release,['release_id'])
 
     logger.info(f"Inserted info for {owner}/{repo_id}/{release['name']}\n")
 
@@ -173,7 +173,7 @@ def fetch_data(key_auth, github_url, repo_id, logger, tag_only = False):
 
     return data
 
-def releases_model(session, repo_git, repo_id, key_auth, augur_db_engine, logger):
+def releases_model(augur_db, repo_git, repo_id, key_auth, logger):
 
     data = fetch_data(key_auth,repo_git, repo_id, logger)
 
@@ -185,7 +185,7 @@ def releases_model(session, repo_git, repo_id, key_auth, augur_db_engine, logger
                 if 'node' in n:
                     release = n['node']
                     #self.insert_release(task, repo_id, data['owner'], release)
-                    insert_release(augur_db_engine, session, repo_id, data['owner'], release, logger)
+                    insert_release(augur_db, repo_id, data['owner'], release, logger)
                 else:
                     logger.info("There's no release to insert. Current node is not available in releases: {}\n".format(n))
         elif 'edges' in data['releases'] and not data['releases']['edges']:
@@ -198,7 +198,7 @@ def releases_model(session, repo_git, repo_id, key_auth, augur_db_engine, logger
                         if 'node' in n:
                             release = n['node']
                             #self.insert_release(task, repo_id, data['owner'], release, True)
-                            insert_release(augur_db_engine, session, repo_id, data['owner'], release, logger, True)
+                            insert_release(augur_db, repo_id, data['owner'], release, logger, True)
                         else:
                             logger.info("There's no release to insert. Current node is not available in releases: {}\n".format(n))
                 else:

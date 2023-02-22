@@ -16,7 +16,7 @@ from augur.tasks.git.util.facade_worker.facade_worker.facade00mainprogram import
 from augur.tasks.git.util.facade_worker.facade_worker.facade01config import FacadeTaskManifest
 
 
-def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform_id, contributorQueue,repo_id):
+def process_commit_metadata(augur_db, key_auth, logger, platform_id, contributorQueue,repo_id):
 
     for contributor in contributorQueue:
         # Get the email from the commit data
@@ -36,7 +36,7 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
             """
 
 
-            query = session.query(ContributorsAlias).filter_by(alias_email=email)
+            query = augur_db.session.query(ContributorsAlias).filter_by(alias_email=email)
             alias_table_data = execute_session_query(query, 'all')
             if len(alias_table_data) >= 1:
                 # Move on if email resolved
@@ -52,7 +52,7 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
         #Check the unresolved_commits table to avoid hitting endpoints that we know don't have relevant data needlessly
         try:
             
-            query = session.query(UnresolvedCommitEmail).filter_by(name=name)
+            query =augur_db.session.query(UnresolvedCommitEmail).filter_by(name=name)
             unresolved_query_result = execute_session_query(query, 'all')
 
             if len(unresolved_query_result) >= 1:
@@ -68,7 +68,7 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
     
         #Check the contributors table for a login for the given name
         try:
-            query = session.query(Contributor).filter_by(cntrb_full_name=name)
+            query = augur_db.session.query(Contributor).filter_by(cntrb_full_name=name)
             contributors_with_matching_name = execute_session_query(query, 'one')
 
             login = contributors_with_matching_name.gh_login
@@ -79,12 +79,12 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
 
         # Try to get the login from the commit sha
         if login == None or login == "":
-            login = get_login_with_commit_hash(session, key_auth, logger, contributor, repo_id)
+            login = get_login_with_commit_hash(augur_db.session, key_auth, logger, contributor, repo_id)
     
         if login == None or login == "":
             logger.info("Failed to get login from commit hash")
             # Try to get the login from supplemental data if not found with the commit hash
-            login = get_login_with_supplemental_data(augur_db_engine, logger, key_auth, contributor)
+            login = get_login_with_supplemental_data(augur_db, logger, key_auth, contributor)
     
         if login == None or login == "":
             logger.error("Failed to get login from supplemental data!")
@@ -160,14 +160,14 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
         #Executes an upsert with sqlalchemy 
         cntrb_natural_keys = ['cntrb_login']
         try:
-            augur_db_engine.insert_data(cntrb,Contributor,cntrb_natural_keys)
+            augur_db.insert_data(cntrb,Contributor,cntrb_natural_keys)
         except Exception as e:
             logger.error(f"Could not complete singular contributor insert!!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
             continue
 
         try:
             # Update alias after insertion. Insertion needs to happen first so we can get the autoincrementkey
-            insert_alias(session, augur_db_engine, logger, cntrb, emailFromCommitData)
+            insert_alias(augur_db, logger, cntrb, emailFromCommitData)
         except LookupError as e:
             logger.info(
                 ''.join(traceback.format_exception(None, e, e.__traceback__)))
@@ -191,7 +191,7 @@ def process_commit_metadata(session, augur_db_engine, key_auth, logger, platform
             #interface.db.execute(query)
             #session.query(UnresolvedCommitEmail).filter(UnresolvedCommitEmail.email == email).delete()
             #session.commit()
-            augur_db_engine.execute_sql(query)
+            augur_db.execute_sql(query)
         except Exception as e:
             logger.info(
                 f"Deleting now resolved email failed with error: {e}")
@@ -229,8 +229,9 @@ def insert_facade_contributors(repo_id):
     logger = logging.getLogger(insert_facade_contributors.__name__)
 
     with GithubTaskManifest(logger) as manifest:
-        
 
+        augur_db = manifest.augur_db
+        
         # Get all of the commit data's emails and names from the commit table that do not appear
         # in the contributors table or the contributors_aliases table.
 
@@ -274,7 +275,7 @@ def insert_facade_contributors(repo_id):
         """).bindparams(repo_id=repo_id)
 
         #Execute statement with session.
-        result = manifest.augur_db_engine.execute_sql(new_contrib_sql).fetchall()
+        result = augur_db.execute_sql(new_contrib_sql).fetchall()
         new_contribs = [dict(zip(row.keys(), row)) for row in result]
 
         #print(new_contribs)
@@ -284,7 +285,7 @@ def insert_facade_contributors(repo_id):
 
 
 
-        process_commit_metadata(manifest.session, manifest.augur_db_engine, manifest.key_auth, logger, manifest.platform_id, list(new_contribs),repo_id)
+        process_commit_metadata(augur_db, manifest.key_auth, logger, manifest.platform_id, list(new_contribs),repo_id)
 
         logger.debug("DEBUG: Got through the new_contribs")
     
@@ -325,7 +326,7 @@ def insert_facade_contributors(repo_id):
         #existing_cntrb_emails = json.loads(pd.read_sql(resolve_email_to_cntrb_id_sql, self.db, params={
         #                                    'repo_id': repo_id}).to_json(orient="records"))
 
-        result = manifest.augur_db_engine.execute_sql(resolve_email_to_cntrb_id_sql).fetchall()
+        result = manifest.augur_db.execute_sql(resolve_email_to_cntrb_id_sql).fetchall()
         existing_cntrb_emails = [dict(zip(row.keys(), row)) for row in result]
 
         print(existing_cntrb_emails)

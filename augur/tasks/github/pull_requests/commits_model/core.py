@@ -9,7 +9,7 @@ from augur.tasks.github.util.util import get_owner_repo
 from augur.application.db.util import execute_session_query
 
 
-def pull_request_commits_model(repo_id,logger, session, augur_db_engine, key_auth):
+def pull_request_commits_model(repo_id,logger, augur_db, key_auth):
     
     # query existing PRs and the respective url we will append the commits url to
     pr_url_sql = s.sql.text("""
@@ -20,9 +20,9 @@ def pull_request_commits_model(repo_id,logger, session, augur_db_engine, key_aut
     pr_urls = []
     #pd.read_sql(pr_number_sql, self.db, params={})
 
-    pr_urls = augur_db_engine.fetchall_data_from_sql_text(pr_url_sql)#session.execute_sql(pr_number_sql).fetchall()
+    pr_urls = augur_db.fetchall_data_from_sql_text(pr_url_sql)#session.execute_sql(pr_number_sql).fetchall()
     
-    query = session.query(Repo).filter(Repo.repo_id == repo_id)
+    query = augur_db.session.query(Repo).filter(Repo.repo_id == repo_id)
     repo = execute_session_query(query, 'one')
 
     owner, name = get_owner_repo(repo.repo_git)
@@ -57,7 +57,7 @@ def pull_request_commits_model(repo_id,logger, session, augur_db_engine, key_aut
         if len(all_data) > 0:
             #Execute bulk upsert
             pr_commits_natural_keys = [	"pull_request_id", "repo_id", "pr_cmt_sha"]
-            augur_db_engine.insert_data(all_data,PullRequestCommit,pr_commits_natural_keys)
+            augur_db.insert_data(all_data,PullRequestCommit,pr_commits_natural_keys)
             
 
 

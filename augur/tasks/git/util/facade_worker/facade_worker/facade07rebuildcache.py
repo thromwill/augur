@@ -43,7 +43,7 @@ from .facade02utilitymethods import update_repo_log, trim_commit, store_working_
 # else:
 #   import MySQLdb
 
-def nuke_affiliations(util, augur_db_engine):
+def nuke_affiliations(facade_db):
 
 # Delete all stored affiliations in the database. Normally when you
 # add/remove/change affiliation data via the web UI, any potentially affected
@@ -53,16 +53,16 @@ def nuke_affiliations(util, augur_db_engine):
 # this is the scorched earth way: remove them all to force a total rebuild.
 # Brutal but effective.
 
-    util.log_activity('Info','Nuking affiliations')
+    facade_db.log_activity('Info','Nuking affiliations')
 
     nuke = s.sql.text("""UPDATE commits SET cmt_author_affiliation = NULL,
             cmt_committer_affiliation = NULL""")
 
-    augur_db_engine.execute_sql(nuke)
+    facade_db.execute_sql(nuke)
 
-    util.log_activity('Info','Nuking affiliations (complete)')
+    facade_db.log_activity('Info','Nuking affiliations (complete)')
 
-def fill_empty_affiliations(augur_db_engine, util):
+def fill_empty_affiliations(facade_db):
 
      
 
@@ -90,13 +90,13 @@ def fill_empty_affiliations(augur_db_engine, util):
          
          
 
-        matches = augur_db_engine.fetchall_data_from_sql_text(find_exact_match)#list(cfg.cursor)
+        matches = facade_db.fetchall_data_from_sql_text(find_exact_match)#list(cfg.cursor)
 
         if not matches and email.find('@') < 0:
 
             # It's not a properly formatted email, leave it NULL and log it.
 
-            util.log_activity('Info',f"Unmatchable email: {email}")
+            facade_db.log_activity('Info',f"Unmatchable email: {email}")
 
             return
 
@@ -115,7 +115,7 @@ def fill_empty_affiliations(augur_db_engine, util):
              
              
 
-            matches = augur_db_engine.fetchall_data_from_sql_text(find_exact_domain)
+            matches = facade_db.fetchall_data_from_sql_text(find_exact_domain)
 
         if not matches:
 
@@ -128,7 +128,7 @@ def fill_empty_affiliations(augur_db_engine, util):
                 ORDER BY ca_start_date DESC""").bindparams(strippedDomain=domain[domain.rfind('.',0,domain.rfind('.',0))+1:])
 
 
-            matches = augur_db_engine.fetchall_data_from_sql_text(find_domain)#list(cfg.cursor)
+            matches = facade_db.fetchall_data_from_sql_text(find_domain)#list(cfg.cursor)
 
         if not matches:
 
@@ -141,7 +141,7 @@ def fill_empty_affiliations(augur_db_engine, util):
 
         if matches:
 
-            util.log_activity('Debug',f"Found domain match for {email}")
+            facade_db.log_activity('Debug',f"Found domain match for {email}")
 
             for match in matches:
                 update = s.sql.text(("UPDATE commits "
@@ -151,14 +151,14 @@ def fill_empty_affiliations(augur_db_engine, util):
                     f"AND cmt_{attribution}_date::date >= \'{match['ca_start_date']}\'::date")
                     ).bindparams(affiliation=match['ca_affiliation'],email=email)
 
-                util.log_activity('Info', f"attr: {attribution} \nmatch:{match}\nsql: {update}")
+                facade_db.log_activity('Info', f"attr: {attribution} \nmatch:{match}\nsql: {update}")
 
                 try: 
-                    augur_db_engine.execute_sql(update)
+                    facade_db.execute_sql(update)
                 except Exception as e: 
-                    util.log_activity('Info', f"Error encountered: {e}")
-                    util.log_activity('Info', f"Affiliation insertion failed for {email} ")
-                    util.log_activity('Info', f"Offending query: {update} ")
+                    facade_db.log_activity('Info', f"Error encountered: {e}")
+                    facade_db.log_activity('Info', f"Affiliation insertion failed for {email} ")
+                    facade_db.log_activity('Info', f"Offending query: {update} ")
 
     def discover_alias(email):
 
@@ -169,7 +169,7 @@ def fill_empty_affiliations(augur_db_engine, util):
             WHERE alias_email=:email
             AND cntrb_active = 1""").bindparams(email=email)
 
-        canonical = augur_db_engine.fetchall_data_from_sql_text(fetch_canonical)#list(cfg.cursor)
+        canonical = facade_db.fetchall_data_from_sql_text(fetch_canonical)#list(cfg.cursor)
 
         if canonical:
             for email in canonical:
@@ -179,8 +179,8 @@ def fill_empty_affiliations(augur_db_engine, util):
 
 ### The real function starts here ###
 
-    util.update_status('Filling empty affiliations')
-    util.log_activity('Info','Filling empty affiliations')
+    facade_db.update_status('Filling empty affiliations')
+    facade_db.log_activity('Info','Filling empty affiliations')
 
     # Process any changes to the affiliations or aliases, and set any existing
     # entries in commits to NULL so they are filled properly.
@@ -189,41 +189,41 @@ def fill_empty_affiliations(augur_db_engine, util):
 
     timefetch = s.sql.text("""SELECT current_timestamp(6) as fetched""")
 
-    affiliations_fetched = augur_db_engine.execute_sql(timefetch).fetchone()[0] 
+    affiliations_fetched = facade_db.execute_sql(timefetch).fetchone()[0] 
     print(affiliations_fetched)
     # Now find the last time we worked on affiliations, to figure out what's new
 
-    affiliations_processed = util.get_setting('affiliations_processed')
+    affiliations_processed = facade_db.get_setting('affiliations_processed')
 
     get_changed_affiliations = s.sql.text("""SELECT ca_domain FROM contributor_affiliations""")# WHERE "
         #"ca_last_used >= timestamptz  %s")
 
      
 
-    changed_affiliations = augur_db_engine.fetchall_data_from_sql_text(get_changed_affiliations)#list(cfg.cursor)
+    changed_affiliations = facade_db.fetchall_data_from_sql_text(get_changed_affiliations)#list(cfg.cursor)
 
     # Process any affiliations which changed since we last checked
 
     for changed_affiliation in changed_affiliations:
 
-        util.log_activity('Debug',f"Resetting affiliation for {changed_affiliation['ca_domain']}")
+        facade_db.log_activity('Debug',f"Resetting affiliation for {changed_affiliation['ca_domain']}")
 
         set_author_to_null = s.sql.text("""UPDATE commits SET cmt_author_affiliation = NULL
             WHERE cmt_author_email LIKE CONCAT('%%',:affiliation)""").bindparams(affiliation=changed_affiliation['ca_domain'])
 
-        augur_db_engine.execute_sql(set_author_to_null)
+        facade_db.execute_sql(set_author_to_null)
 
         set_committer_to_null = s.sql.text("""UPDATE commits SET cmt_committer_affiliation = NULL
             WHERE cmt_committer_email LIKE CONCAT('%%',:affiliation)""").bindparams(affiliation=changed_affiliation['ca_domain'])
 
-        augur_db_engine.execute_sql(set_committer_to_null)
+        facade_db.execute_sql(set_committer_to_null)
 
     # Update the last fetched date, so we know where to start next time.
 
     update_affiliations_date = s.sql.text("""UPDATE settings SET value=:affiliations
         WHERE setting = 'affiliations_processed'""").bindparams(affiliations=affiliations_fetched)
 
-    augur_db_engine.execute_sql(update_affiliations_date)
+    facade_db.execute_sql(update_affiliations_date)
 
     # On to the aliases, now
 
@@ -231,61 +231,61 @@ def fill_empty_affiliations(augur_db_engine, util):
 
     get_time = s.sql.text("""SELECT current_timestamp(6) as fetched""")
 
-    aliases_fetched = augur_db_engine.execute_sql(get_time).fetchone()[0]#['fetched']
+    aliases_fetched = facade_db.execute_sql(get_time).fetchone()[0]#['fetched']
 
     # Now find the last time we worked on aliases, to figure out what's new
 
-    aliases_processed = util.get_setting('aliases_processed')
+    aliases_processed = facade_db.get_setting('aliases_processed')
 
     get_changed_aliases = s.sql.text("""SELECT alias_email FROM contributors_aliases WHERE
         cntrb_last_modified >= :aliases""").bindparams(aliases=aliases_processed)
 
-    changed_aliases = augur_db_engine.fetchall_data_from_sql_text(get_changed_aliases)#list(cfg.cursor)
+    changed_aliases = facade_db.fetchall_data_from_sql_text(get_changed_aliases)#list(cfg.cursor)
 
     # Process any aliases which changed since we last checked
 
     for changed_alias in changed_aliases:
 
-        util.log_activity('Debug',f"Resetting affiliation for {changed_alias['alias_email']}")
+        facade_db.log_activity('Debug',f"Resetting affiliation for {changed_alias['alias_email']}")
 
         set_author_to_null = s.sql.text("""UPDATE commits SET cmt_author_affiliation = NULL
             WHERE cmt_author_raw_email LIKE CONCAT('%%',:alias)""").bindparams(alias=changed_alias['alias_email'])
 
-        util.insert_or_update_data(set_author_to_null)
+        facade_db.insert_or_update_data(set_author_to_null)
 
         set_committer_to_null = s.sql.text("""UPDATE commits SET cmt_committer_affiliation = NULL 
             WHERE cmt_committer_raw_email LIKE CONCAT('%%',:alias_email)""").bindparams(alias_email=changed_alias['alias_email'])
 
-        util.insert_or_update_data(set_committer_to_null)
+        facade_db.insert_or_update_data(set_committer_to_null)
 
         reset_author = s.sql.text("""UPDATE commits
             SET cmt_author_email = :author_email 
             WHERE cmt_author_raw_email = :raw_author_email
             """).bindparams(author_email=discover_alias(changed_alias['alias_email']),raw_author_email=changed_alias['alias_email'])
 
-        util.insert_or_update_data(reset_author)
+        facade_db.insert_or_update_data(reset_author)
 
         reset_committer = s.sql.text("""UPDATE commits
             SET cmt_committer_email = :author_email 
             WHERE cmt_committer_raw_email = :raw_author_email
             """).bindparams(author_email=discover_alias(changed_alias['alias_email']), raw_author_email=changed_alias['alias_email'])
 
-        util.insert_or_update_data(reset_committer)
+        facade_db.insert_or_update_data(reset_committer)
         
     # Update the last fetched date, so we know where to start next time.
 
     update_aliases_date = s.sql.text("""UPDATE settings SET value=:aliases
         WHERE setting = 'aliases_processed'""").bindparams(aliases=aliases_fetched)
 
-    augur_db_engine.execute_sql(update_aliases_date)
+    facade_db.execute_sql(update_aliases_date)
 
     # Now rebuild the affiliation data
 
-    working_author = util.get_setting('working_author')
+    working_author = facade_db.get_setting('working_author')
 
     if working_author != 'done':
-        util.log_activity('Error',f"Trimming author data in affiliations: {working_author}")
-        trim_author(augur_db_engine, util, working_author)
+        facade_db.log_activity('Error',f"Trimming author data in affiliations: {working_author}")
+        trim_author(facade_db, working_author)
 
     # Figure out which projects have NULL affiliations so they can be recached
 
@@ -305,7 +305,7 @@ def fill_empty_affiliations(augur_db_engine, util):
     #   "SET rg_recache=TRUE WHERE "
     #   "author_affiliation IS NULL OR "
     #   "committer_affiliation IS NULL")
-    augur_db_engine.execute_sql(set_recache)
+    facade_db.execute_sql(set_recache)
 
     # Find any authors with NULL affiliations and fill them
 
@@ -315,19 +315,19 @@ def fill_empty_affiliations(augur_db_engine, util):
         WHERE cmt_author_affiliation IS NULL 
         GROUP BY cmt_author_email""")
 
-    null_authors = augur_db_engine.fetchall_data_from_sql_text(find_null_authors)
+    null_authors = facade_db.fetchall_data_from_sql_text(find_null_authors)
 
-    util.log_activity('Debug',f"Found {len(null_authors)} authors with NULL affiliation")
+    facade_db.log_activity('Debug',f"Found {len(null_authors)} authors with NULL affiliation")
 
     for null_author in null_authors:
 
         email = null_author['email']
 
-        store_working_author(augur_db_engine, util, email)
+        store_working_author(facade_db, email)
 
         discover_null_affiliations('author',email)
 
-    store_working_author(augur_db_engine, util, 'done')
+    store_working_author(facade_db, 'done')
 
     # Find any committers with NULL affiliations and fill them
 
@@ -337,15 +337,15 @@ def fill_empty_affiliations(augur_db_engine, util):
         WHERE cmt_committer_affiliation IS NULL
         GROUP BY cmt_committer_email""")
 
-    null_committers = augur_db_engine.fetchall_data_from_sql_text(find_null_committers)
+    null_committers = facade_db.fetchall_data_from_sql_text(find_null_committers)
 
-    util.log_activity('Debug',f"Found {len(null_committers)} committers with NULL affiliation")
+    facade_db.log_activity('Debug',f"Found {len(null_committers)} committers with NULL affiliation")
 
     for null_committer in null_committers:
 
         email = null_committer['email']
 
-        store_working_author(augur_db_engine, util, email)
+        store_working_author(facade_db, email)
 
         discover_null_affiliations('committer',email)
 
@@ -355,43 +355,43 @@ def fill_empty_affiliations(augur_db_engine, util):
         SET cmt_author_affiliation = '(Unknown)'
         WHERE cmt_author_affiliation IS NULL""")
 
-    augur_db_engine.execute_sql(fill_unknown_author)
+    facade_db.execute_sql(fill_unknown_author)
 
     fill_unknown_committer = s.sql.text("""UPDATE commits
         SET cmt_committer_affiliation = '(Unknown)'
         WHERE cmt_committer_affiliation IS NULL""")
 
-    augur_db_engine.execute_sql(fill_unknown_committer)
+    facade_db.execute_sql(fill_unknown_committer)
     
 
-    store_working_author(augur_db_engine, util, 'done')
+    store_working_author(facade_db, 'done')
 
-    util.log_activity('Info','Filling empty affiliations (complete)')
+    facade_db.log_activity('Info','Filling empty affiliations (complete)')
 
-def invalidate_caches(augur_db_engine, util):
+def invalidate_caches(facade_db):
 
 # Invalidate all caches
 
-    util.update_status('Invalidating caches')
-    util.log_activity('Info','Invalidating caches')
+    facade_db.update_status('Invalidating caches')
+    facade_db.log_activity('Info','Invalidating caches')
 
     invalidate_cache = s.sql.text("""UPDATE repo_groups SET rg_recache = 1""")
-    augur_db_engine.execute_sql(invalidate_cache)
+    facade_db.execute_sql(invalidate_cache)
 
-    util.log_activity('Info','Invalidating caches (complete)')
+    facade_db.log_activity('Info','Invalidating caches (complete)')
 
-def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
+def rebuild_unknown_affiliation_and_web_caches(facade_db, metadata):
 
 # When there's a lot of analysis data, calculating display data on the fly gets
 # pretty expensive. Instead, we crunch the data based upon the user's preferred
 # statistics (author or committer) and store them. We also store all records
 # with an (Unknown) affiliation for display to the user.
 
-    util.update_status('Caching data for display')
-    util.log_activity('Info','Caching unknown affiliations and web data for display')
+    facade_db.update_status('Caching data for display')
+    facade_db.log_activity('Info','Caching unknown affiliations and web data for display')
 
-    report_date = util.get_setting('report_date')
-    report_attribution = util.get_setting('report_attribution')
+    report_date = facade_db.get_setting('report_date')
+    report_attribution = facade_db.get_setting('report_attribution')
 
     # Clear stale caches
 
@@ -407,7 +407,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     # ("DELETE c.* FROM dm_repo_group_weekly c "
     #   "JOIN repo_groups p ON c.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_dm_repo_group_weekly)
+    facade_db.execute_sql(clear_dm_repo_group_weekly)
 
     clear_dm_repo_group_monthly = s.sql.text("""
             DELETE 
@@ -421,7 +421,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     # ("DELETE c.* FROM dm_repo_group_monthly c "
     #   "JOIN repo_groups p ON c.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_dm_repo_group_monthly)
+    facade_db.execute_sql(clear_dm_repo_group_monthly)
 
     clear_dm_repo_group_annual = s.sql.text("""
             DELETE 
@@ -435,7 +435,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     # ("DELETE c.* FROM dm_repo_group_annual c "
     #   "JOIN repo_groups p ON c.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_dm_repo_group_annual)
+    facade_db.execute_sql(clear_dm_repo_group_annual)
 
     clear_dm_repo_weekly = s.sql.text("""
             DELETE 
@@ -452,7 +452,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     #   "JOIN repo r ON c.repo_id = r.repo_id "
     #   "JOIN repo_groups p ON r.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_dm_repo_weekly)
+    facade_db.execute_sql(clear_dm_repo_weekly)
 
     clear_dm_repo_monthly = s.sql.text("""
             DELETE 
@@ -469,7 +469,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     #   "JOIN repo r ON c.repo_id = r.repo_id "
     #   "JOIN repo_groups p ON r.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_dm_repo_monthly)
+    facade_db.execute_sql(clear_dm_repo_monthly)
 
     clear_dm_repo_annual = s.sql.text("""
             DELETE 
@@ -486,7 +486,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     #   "JOIN repo r ON c.repo_id = r.repo_id "
     #   "JOIN repo_groups p ON r.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_dm_repo_annual)
+    facade_db.execute_sql(clear_dm_repo_annual)
 
     clear_unknown_cache = s.sql.text("""
             DELETE 
@@ -500,9 +500,9 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
     # ("DELETE c.* FROM unknown_cache c "
     #   "JOIN repo_groups p ON c.repo_group_id = p.repo_group_id WHERE "
     #   "p.rg_recache=TRUE")
-    augur_db_engine.execute_sql(clear_unknown_cache)
+    facade_db.execute_sql(clear_unknown_cache)
 
-    util.log_activity('Verbose','Caching unknown authors and committers')
+    facade_db.log_activity('Verbose','Caching unknown authors and committers')
 
     # Cache the unknown authors
 
@@ -524,7 +524,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
 
         """).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(unknown_authors)
+    facade_db.execute_sql(unknown_authors)
 
     # Cache the unknown committers
 
@@ -544,11 +544,11 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         GROUP BY r.repo_group_id,a.cmt_committer_email, info.a, info.b, info.c 
         """).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(unknown_committers)
+    facade_db.execute_sql(unknown_committers)
 
     # Start caching by project
 
-    util.log_activity('Verbose','Caching projects')
+    facade_db.log_activity('Verbose','Caching projects')
 
     cache_projects_by_week = s.sql.text((
         "INSERT INTO dm_repo_group_weekly (repo_group_id, email, affiliation, week, year, added, removed, whitespace, files, patches, tool_source, tool_version, data_source)"
@@ -584,7 +584,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         "r.repo_group_id, info.a, info.b, info.c")
         ).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(cache_projects_by_week)
+    facade_db.execute_sql(cache_projects_by_week)
 
     cache_projects_by_month = s.sql.text(
         ("INSERT INTO dm_repo_group_monthly (repo_group_id, email, affiliation, month, year, added, removed, whitespace, files, patches, tool_source, tool_version, data_source) "
@@ -620,7 +620,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         "r.repo_group_id, info.a, info.b, info.c"
         )).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(cache_projects_by_month)
+    facade_db.execute_sql(cache_projects_by_month)
 
     cache_projects_by_year = s.sql.text((
         "INSERT INTO dm_repo_group_annual (repo_group_id, email, affiliation, year, added, removed, whitespace, files, patches, tool_source, tool_version, data_source) "
@@ -660,10 +660,10 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
      
      
 
-    augur_db_engine.execute_sql(cache_projects_by_year)
+    facade_db.execute_sql(cache_projects_by_year)
     # Start caching by repo
 
-    util.log_activity('Verbose','Caching repos')
+    facade_db.log_activity('Verbose','Caching repos')
 
     cache_repos_by_week = s.sql.text(
         (
@@ -700,7 +700,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         "a.repo_id, info.a, info.b, info.c"
         )).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(cache_repos_by_week)
+    facade_db.execute_sql(cache_repos_by_week)
 
     cache_repos_by_month = s.sql.text((
         "INSERT INTO dm_repo_monthly (repo_id, email, affiliation, month, year, added, removed, whitespace, files, patches, tool_source, tool_version, data_source)"
@@ -736,7 +736,7 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         "a.repo_id, info.a, info.b, info.c"
         )).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(cache_repos_by_month)
+    facade_db.execute_sql(cache_repos_by_month)
 
     cache_repos_by_year = s.sql.text((
         "INSERT INTO dm_repo_annual (repo_id, email, affiliation, year, added, removed, whitespace, files, patches, tool_source, tool_version, data_source)"
@@ -770,12 +770,12 @@ def rebuild_unknown_affiliation_and_web_caches(augur_db_engine, util, metadata):
         "a.repo_id, info.a, info.b, info.c"
         )).bindparams(tool_source=metadata["tool_source"],tool_version=metadata["tool_version"],data_source=metadata["data_source"])
 
-    augur_db_engine.execute_sql(cache_repos_by_year)
+    facade_db.execute_sql(cache_repos_by_year)
 
     # Reset cache flags
 
     reset_recache = s.sql.text("UPDATE repo_groups SET rg_recache = 0")
-    augur_db_engine.execute_sql(reset_recache)
+    facade_db.execute_sql(reset_recache)
 
-    util.log_activity('Info','Caching unknown affiliations and web data for display (complete)')
+    facade_db.log_activity('Info','Caching unknown affiliations and web data for display (complete)')
 

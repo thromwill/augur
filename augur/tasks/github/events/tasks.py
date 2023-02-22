@@ -21,8 +21,9 @@ def collect_events(repo_git: str):
     
     with GithubTaskManifest(logger) as manifest:
 
-            
-        query = manifest.session.query(Repo).filter(Repo.repo_git == repo_git)
+        augur_db = manifest.augur_db
+
+        query = augur_db.session.query(Repo).filter(Repo.repo_git == repo_git)
         repo_obj = execute_session_query(query, 'one')
         repo_id = repo_obj.repo_id
 
@@ -36,7 +37,7 @@ def collect_events(repo_git: str):
 
         if event_data:
         
-            process_events(event_data, f"{owner}/{repo}: Event task", repo_id, logger, manifest.session, manifest.augur_db_engine)
+            process_events(event_data, f"{owner}/{repo}: Event task", repo_id, logger, augur_db)
 
         else:
             logger.info(f"{owner}/{repo} has no events")
@@ -72,7 +73,7 @@ def retrieve_all_event_data(repo_git: str, logger, key_auth):
 
     return all_data        
 
-def process_events(events, task_name, repo_id, logger, session, augur_db_engine):
+def process_events(events, task_name, repo_id, logger, augur_db):
     
     tool_source = "Github events task"
     tool_version = "2.0"
@@ -99,7 +100,7 @@ def process_events(events, task_name, repo_id, logger, session, augur_db_engine)
             pr_url = event_mapping_data["pull_request"]["url"]
 
             try:
-                query = session.query(PullRequest).filter(PullRequest.pr_url == pr_url)
+                query = augur_db.session.query(PullRequest).filter(PullRequest.pr_url == pr_url)
                 related_pr = execute_session_query(query, 'one')
             except s.orm.exc.NoResultFound:
                 logger.info(f"{task_name}: Could not find related pr")
@@ -117,7 +118,7 @@ def process_events(events, task_name, repo_id, logger, session, augur_db_engine)
             issue_url = event_mapping_data["url"]
 
             try:
-                query = session.query(Issue).filter(Issue.issue_url == issue_url)
+                query = augur_db.session.query(Issue).filter(Issue.issue_url == issue_url)
                 related_issue = execute_session_query(query, 'one')
             except s.orm.exc.NoResultFound:
                 logger.info(f"{task_name}: Could not find related pr")
@@ -141,7 +142,7 @@ def process_events(events, task_name, repo_id, logger, session, augur_db_engine)
     # remove contributors that were found in the data more than once
     contributors = remove_duplicate_dicts(contributors)
 
-    augur_db_engine.insert_data(contributors, Contributor, ["cntrb_id"])
+    augur_db.insert_data(contributors, Contributor, ["cntrb_id"])
 
     issue_events_len = len(issue_event_dicts)
     pr_events_len = len(pr_event_dicts)
@@ -155,10 +156,10 @@ def process_events(events, task_name, repo_id, logger, session, augur_db_engine)
 
     # TODO: Could replace this with "id" but it isn't stored on the table for some reason
     pr_event_natural_keys = ["node_id"]
-    augur_db_engine.insert_data(pr_event_dicts, PullRequestEvent, pr_event_natural_keys)
+    augur_db.insert_data(pr_event_dicts, PullRequestEvent, pr_event_natural_keys)
 
     issue_event_natural_keys = ["issue_id", "issue_event_src_id"]
-    augur_db_engine.insert_data(issue_event_dicts, IssueEvent, issue_event_natural_keys)
+    augur_db.insert_data(issue_event_dicts, IssueEvent, issue_event_natural_keys)
 
 
 # TODO: Should we skip an event if there is no contributor to resolve it o

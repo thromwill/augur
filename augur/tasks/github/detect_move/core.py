@@ -26,7 +26,7 @@ def extract_owner_and_repo_from_endpoint(key_auth, url, logger):
 
     return splits[0], splits[-1]
 
-def ping_github_for_repo_move(session,repo, logger, key_auth, augur_db_engine):
+def ping_github_for_repo_move(augur_db, repo, logger, key_auth):
 
     owner, name = get_owner_repo(repo.repo_git)
     url = f"https://api.github.com/repos/{owner}/{name}"
@@ -72,15 +72,15 @@ def ping_github_for_repo_move(session,repo, logger, key_auth, augur_db_engine):
 
     current_repo_dict.update(repo_update_dict)
 
-    result = augur_db_engine.insert_data(current_repo_dict, Repo, ['repo_id'])
+    result = augur_db.insert_data(current_repo_dict, Repo, ['repo_id'])
 
     logger.info(f"Updated repo for {owner}/{name}\n")
 
-    statusQuery = session.query(CollectionStatus).filter(CollectionStatus.repo_id == repo.repo_id)
+    statusQuery = augur_db.session.query(CollectionStatus).filter(CollectionStatus.repo_id == repo.repo_id)
 
     collectionRecord = execute_session_query(statusQuery,'one')
     collectionRecord.status = CollectionState.PENDING.value
-    session.commit()
+    augur_db.session.commit()
 
     raise Exception("ERROR: Repo has moved! Marked repo as pending and stopped collection")
 

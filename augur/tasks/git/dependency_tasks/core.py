@@ -10,7 +10,7 @@ from augur.application.config import AugurConfig
 from augur.application.db.util import execute_session_query
 from augur.tasks.git.dependency_tasks.dependency_util import dependency_calculator as dep_calc
 
-def generate_deps_data(augur_db_engine, logger, repo_id, path):
+def generate_deps_data(facade_db, logger, repo_id, path):
         """Runs scc on repo and stores data in database
         :param repo_id: Repository ID
         :param path: Absolute path of the Repostiory
@@ -39,12 +39,12 @@ def generate_deps_data(augur_db_engine, logger, repo_id, path):
                     """).bindparams(**repo_deps)
 
                     #result = self.db.execute(self.repo_dependencies_table.insert().values(repo_deps))
-                    augur_db_engine.execute_sql(insert_statement)
+                    facade_db.execute_sql(insert_statement)
         except Exception as e:
             logger.error(f"Could not complete generate_deps_data!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
 
 
-def deps_model(session, augur_db_engine, logger, repo_id):
+def deps_model(facade_db, logger, repo_id):
     """ Data collection and storage method
     """
     logger.info(f"This is the deps model repo: {repo_id}.")
@@ -55,13 +55,13 @@ def deps_model(session, augur_db_engine, logger, repo_id):
         WHERE repo_id = :repo_id
     """).bindparams(repo_id=repo_id)
 
-    result = augur_db_engine.execute_sql(repo_path_sql)
+    result = facade_db.execute_sql(repo_path_sql)
     
     relative_repo_path = result.fetchone()[1]
-    config = AugurConfig(logger, session)
+    config = AugurConfig(logger, facade_db.session)
     absolute_repo_path = config.get_section("Facade")['repo_directory'] + relative_repo_path
 
     try:
-        generate_deps_data(augur_db_engine,logger,repo_id, absolute_repo_path)
+        generate_deps_data(facade_db,logger,repo_id, absolute_repo_path)
     except Exception as e:
         logger.error(f"Could not complete deps_model!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")

@@ -40,16 +40,16 @@ import sqlalchemy as s
 from augur.application.db.util import execute_session_query
 from augur.application.db.models import *
 
-def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_git):
+def git_repo_cleanup(facade_db, repo_base_directory, repo_git):
 
 # Clean up any git repos that are pending deletion
 
-	util.update_status('Purging deleted repos')
+	facade_db.update_status('Purging deleted repos')
 	#logger.info("Processing deletions")
-	util.log_activity('Info','Processing deletions')
+	facade_db.log_activity('Info','Processing deletions')
 
 
-	query = session.query(Repo).filter(
+	query = facade_db.session.query(Repo).filter(
 		Repo.repo_git == repo_git,Repo.repo_status == "Delete")#s.sql.text("""SELECT repo_id,repo_group_id,repo_path,repo_name FROM repo WHERE repo_status='Delete'""")
 
 	delete_repos = execute_session_query(query,'all')#session.fetchall_data_from_sql_text(query)
@@ -67,65 +67,65 @@ def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_g
 
 		remove_commits = s.sql.text("""DELETE FROM commits WHERE repo_id=:repo_id
 			""").bindparams(repo_id=row.repo_id)
-		augur_db_engine.execute_sql(remove_commits) 
+		facade_db.execute_sql(remove_commits) 
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE commits""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		# Remove cached repo data
 
 		remove_dm_repo_weekly = s.sql.text("""DELETE FROM dm_repo_weekly WHERE repo_id=:repo_id
 			""").bindparams(repo_id=row.repo_id)
-		augur_db_engine.execute_sql(remove_dm_repo_weekly)
+		facade_db.execute_sql(remove_dm_repo_weekly)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_weekly""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		remove_dm_repo_monthly = s.sql.text("""DELETE FROM dm_repo_monthly WHERE repo_id=:repo_id
 			""").bindparams(repo_id=row.repo_id)
-		augur_db_engine.execute_sql(remove_dm_repo_monthly)
+		facade_db.execute_sql(remove_dm_repo_monthly)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_monthly""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		remove_dm_repo_annual = s.sql.text("""DELETE FROM dm_repo_annual WHERE repo_id=:repo_id
 			""").bindparams(repo_id=row.repo_id)
-		augur_db_engine.execute_sql(remove_dm_repo_annual)
+		facade_db.execute_sql(remove_dm_repo_annual)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_annual""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		# Set project to be recached if just removing a repo
 
 		set_project_recache = s.sql.text("""UPDATE projects SET recache=TRUE
 			WHERE id=:repo_group_id""").bindparams(repo_group_id=row.repo_group_id)
-		augur_db_engine.execute_sql(set_project_recache)
+		facade_db.execute_sql(set_project_recache)
 		# Remove the entry from the repos table
 
 		query = s.sql.text("""DELETE FROM repo WHERE repo_id=:repo_id
 			""").bindparams(repo_id=row.repo_id)
-		augur_db_engine.execute_sql(query)
+		facade_db.execute_sql(query)
 
 		#log_activity('Verbose','Deleted repo %s' % row[0])
 		#logger.debug(f"Deleted repo {row.repo_id}")
-		util.log_activity('Verbose',f"Deleted repo {row.repo_id}")
+		facade_db.log_activity('Verbose',f"Deleted repo {row.repo_id}")
 		cleanup = '%s/%s%s' % (row.repo_group_id,row.repo_path,row.repo_name)
 
 		# Remove any working commits
 
 		remove_working_commits = s.sql.text("""DELETE FROM working_commits WHERE repos_id=:repo_id
 			""").bindparams(repo_id=row.repo_id)
-		augur_db_engine.execute_sql(remove_working_commits)
+		facade_db.execute_sql(remove_working_commits)
 
 		# Remove the repo from the logs
 
 		remove_logs = s.sql.text("""DELETE FROM repos_fetch_log WHERE repos_id =:repo_id
 			""").bindparams(repo_id=row.repo_id)
 
-		augur_db_engine.execute_sql(remove_logs)
+		facade_db.execute_sql(remove_logs)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE repos_fetch_log""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		# Attempt to cleanup any empty parent directories
 
@@ -136,16 +136,16 @@ def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_g
 			subprocess.Popen([cmd],shell=True).wait()
 			#log_activity('Verbose','Attempted %s' % cmd)
 			#logger.debug(f"Attempted {cmd}")
-			util.log_activity('Verbose',f"Attempted {cmd}")
+			facade_db.log_activity('Verbose',f"Attempted {cmd}")
 
 		#update_repo_log(row[0],'Deleted')
-		util.update_repo_log(row.repo_id,'Deleted')
+		facade_db.update_repo_log(row.repo_id,'Deleted')
 
 	# Clean up deleted projects
 
 	get_deleted_projects = s.sql.text("""SELECT repo_group_id FROM repo_groups WHERE rg_name='(Queued for removal)'""")
 
-	deleted_projects = augur_db_engine.fetchall_data_from_sql_text(get_deleted_projects)
+	deleted_projects = facade_db.fetchall_data_from_sql_text(get_deleted_projects)
 
 	for project in deleted_projects:
 
@@ -153,37 +153,37 @@ def git_repo_cleanup(augur_db_engine, util, session, repo_base_directory, repo_g
 
 		clear_annual_cache = s.sql.text("""DELETE FROM dm_repo_group_annual WHERE
 			repo_group_id=:repo_group_id""").bindparams(repo_group_id=project['repo_group_id'])
-		augur_db_engine.execute_sql(clear_annual_cache)
+		facade_db.execute_sql(clear_annual_cache)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_group_annual""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		clear_monthly_cache = s.sql.text("""DELETE FROM dm_repo_group_monthly WHERE
 			repo_group_id=:repo_group_id""").bindparams(repo_group_id=project['repo_group_id'])
-		augur_db_engine.execute_sql(clear_monthly_cache)
+		facade_db.execute_sql(clear_monthly_cache)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_group_monthly""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		clear_weekly_cache = s.sql.text("""DELETE FROM dm_repo_group_weekly WHERE
 			repo_group_id=:repo_group_id""").bindparams(repo_group_id=project['repo_group_id'])
-		augur_db_engine.execute_sql(clear_weekly_cache)
+		facade_db.execute_sql(clear_weekly_cache)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_group_weekly""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		clear_unknown_cache = s.sql.text("""DELETE FROM unknown_cache WHERE
 			projects_id=:repo_group_id""").bindparams(repo_group_id=project['repo_group_id'])
-		augur_db_engine.execute_sql(clear_unknown_cache)
+		facade_db.execute_sql(clear_unknown_cache)
 
 		optimize_table = s.sql.text("""OPTIMIZE TABLE dm_repo_group_weekly""")
-		augur_db_engine.execute_sql(optimize_table)
+		facade_db.execute_sql(optimize_table)
 
 		# Remove any projects which were also marked for deletion
 
 		remove_project = s.sql.text("""DELETE FROM repo_groups WHERE repo_group_id=:repo_group_id
 			""").bindparams(repo_group_id=project['repo_group_id'])
-		augur_db_engine.execute_sql(remove_project)
+		facade_db.execute_sql(remove_project)
 
 	
-	util.log_activity('Info', 'Processing deletions (complete)')
+	facade_db.log_activity('Info', 'Processing deletions (complete)')

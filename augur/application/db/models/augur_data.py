@@ -28,7 +28,6 @@ from typing import List, Any, Dict
 
 
 from augur.application.db.models.base import Base
-from augur.application import requires_db_session
 from augur.application.db.util import execute_session_query
 DEFAULT_REPO_GROUP_ID = 1
 
@@ -949,7 +948,7 @@ class Repo(Base):
         return result.groups()[0]
 
     @staticmethod
-    def insert(session, url: str, repo_group_id: int, tool_source):
+    def insert(augur_db, url: str, repo_group_id: int, tool_source):
         """Add a repo to the repo table.
 
         Args:
@@ -963,7 +962,7 @@ class Repo(Base):
         if not isinstance(url, str) or not isinstance(repo_group_id, int) or not isinstance(tool_source, str):
             return None
 
-        if not RepoGroup.is_valid_repo_group_id(session, repo_group_id):
+        if not RepoGroup.is_valid_repo_group_id(augur_db.session, repo_group_id):
             return None
 
         repo_data = {
@@ -977,19 +976,19 @@ class Repo(Base):
 
         repo_unique = ["repo_git"]
         return_columns = ["repo_id"]
-        result = session.insert_data(repo_data, Repo, repo_unique, return_columns, on_conflict_update=False)
+        result = augur_db.insert_data(repo_data, Repo, repo_unique, return_columns, on_conflict_update=False)
 
         if not result:
             return None
 
         if repo_group_id != DEFAULT_REPO_GROUP_ID:
             # update the repo group id
-            query = session.query(Repo).filter(Repo.repo_git == url)
+            query = augur_db.session.query(Repo).filter(Repo.repo_git == url)
             repo = execute_session_query(query, 'one')
 
             if not repo.repo_group_id == repo_group_id:
                 repo.repo_group_id = repo_group_id
-                session.commit()
+                augur_db.session.commit()
 
         return result[0]["repo_id"]
 

@@ -40,7 +40,7 @@ import traceback
 import sqlalchemy as s
 from sqlalchemy.exc import IntegrityError
 
-def analyze_commit(augur_db_engine, util, logger, repo_id, repo_loc, commit):
+def analyze_commit(facade_db, logger, repo_id, repo_loc, commit):
 
 # This function analyzes a given commit, counting the additions, removals, and
 # whitespace changes. It collects all of the metadata about the commit, and
@@ -95,7 +95,7 @@ def analyze_commit(augur_db_engine, util, logger, repo_id, repo_loc, commit):
 			WHERE alias_email=:alias_email 
 			AND cntrb_active = 1""").bindparams(alias_email=email)
 
-		canonical = augur_db_engine.fetchall_data_from_sql_text(fetch_canonical)#list(cursor_people_local)
+		canonical = facade_db.fetchall_data_from_sql_text(fetch_canonical)#list(cursor_people_local)
 
 		if canonical:
 			for email in canonical:
@@ -158,7 +158,7 @@ def analyze_commit(augur_db_engine, util, logger, repo_id, repo_loc, commit):
 			""").bindparams(**commit_record)
 
 		try:
-			augur_db_engine.execute_sql(store)
+			facade_db.execute_sql(store)
 		except Exception as e:
 		
 			logger.error(f"Ran into issue when trying to insert commit with values: \n {commit_record} \n Error: {e}")
@@ -201,7 +201,7 @@ def analyze_commit(augur_db_engine, util, logger, repo_id, repo_loc, commit):
 
 	#cursor_local.execute(store_working_commit, (repo_id,commit))
 	#db_local.commit()
-	augur_db_engine.execute_sql(store_working_commit)
+	facade_db.execute_sql(store_working_commit)
 
 	#session.log_activity('Debug',f"Stored working commit and analyzing : {commit}")
 
@@ -344,9 +344,9 @@ def analyze_commit(augur_db_engine, util, logger, repo_id, repo_loc, commit):
 		remove_commit = s.sql.text("""DELETE FROM working_commits 
 			WHERE repos_id = :repo_id AND working_commit = :hash
 			""").bindparams(repo_id=repo_id,hash=commit)
-		augur_db_engine.execute_sql(remove_commit)
+		facade_db.execute_sql(remove_commit)
 
 		#session.log_activity('Debug',f"Completed and removed working commit: {commit}")
 	except:
-		util.log_activity('Info', f"Working Commit: {commit}")
+		facade_db.log_activity('Info', f"Working Commit: {commit}")
 	# If multithreading, clean up the local database

@@ -14,7 +14,7 @@ from augur.tasks.util.AugurUUID import AugurUUID, GithubUUID, UnresolvableUUID
 
 
 
-def query_github_contributors(augur_db_engine, key_auth, logger, platform_id,  entry_info, repo_id):
+def query_github_contributors(augur_db, key_auth, logger, platform_id,  entry_info, repo_id):
 
     """ Data collection function
     Query the GitHub API for contributors
@@ -127,7 +127,7 @@ def query_github_contributors(augur_db_engine, key_auth, logger, platform_id,  e
             cntrb_natural_keys = ['cntrb_id']
             #insert cntrb to table.
             #logger.info(f"Contributor:  {cntrb}  \n")
-            augur_db_engine.insert_data(cntrb,Contributor,cntrb_natural_keys)
+            augur_db.insert_data(cntrb,Contributor,cntrb_natural_keys)
             
         except Exception as e:
             logger.error("Caught exception: {}".format(e))
@@ -137,11 +137,11 @@ def query_github_contributors(augur_db_engine, key_auth, logger, platform_id,  e
 
 # Get all the committer data for a repo.
 # Used by facade in facade03analyzecommit
-def grab_committer_list(session, augur_db_engine, key_auth, logger, platform_id, repo_id, platform="github"):
+def grab_committer_list(augur_db, key_auth, logger, platform_id, repo_id, platform="github"):
 
     # Create API endpoint from repo_id
     try:
-        endpoint = create_endpoint_from_repo_id(session, logger, repo_id)
+        endpoint = create_endpoint_from_repo_id(augur_db.session, logger, repo_id)
     except Exception as e:
         logger.info(
             f"Could not create endpoint from repo {repo_id} because of ERROR: {e}")
@@ -157,5 +157,5 @@ def grab_committer_list(session, augur_db_engine, key_auth, logger, platform_id,
         }
     }
 
-    query_github_contributors(augur_db_engine, key_auth, logger, platform_id, contrib_entry_info, repo_id)
+    query_github_contributors(augur_db, key_auth, logger, platform_id, contrib_entry_info, repo_id)
     
