@@ -66,7 +66,6 @@ def ping_github_for_repo_move(augur_db, repo, logger, key_auth):
         'repo_git': f"https://github.com/{owner}/{name}",
         'repo_path': None,
         'repo_name': None,
-        'repo_status': 'New',
         'description': f"(Originally hosted at {url}) {old_description}"
     }
 

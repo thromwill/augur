@@ -35,7 +35,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 
 from augur.application.db import data_parse
 from augur.tasks.util.AugurUUID import GithubUUID, UnresolvableUUID
-from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
+from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo, CollectionStatus
 
 from augur.tasks.github.util.github_paginator import GithubPaginator, hit_api
 from augur.tasks.github.util.gh_graphql_entities import PullRequest
@@ -65,12 +65,17 @@ def facade_error_handler(request,exc,traceback):
 
 #Predefine facade collection with tasks
 @celery.task
-def facade_analysis_init_facade_task():
+def facade_analysis_init_facade_task(repo_id):
 
     logger = logging.getLogger(facade_analysis_init_facade_task.__name__)
     with FacadeTaskManifest(logger) as manifest:
         manifest.facade_db.update_status('Running analysis')
         manifest.facade_db.log_activity('Info',f"Beginning analysis.")
+
+        update_project_status = s.sql.text("""UPDATE augur_operations.collection_status
+            SET facade_status='Collecting' WHERE 
+            repo_id=:repo_id""").bindparams(repo_id=repo_id)
+        manifest.augur_db.execute_sql(update_project_status)
 
 @celery.task
 def grab_comitters(repo_id,platform="github"):
@@ -212,10 +217,6 @@ def trim_commits_post_analysis_facade_task(repo_id):
         for commit in trimmed_commits:
             trim_commit(facade_db,repo_id,commit)
         
-        set_complete = s.sql.text("""UPDATE repo SET repo_status='Complete' WHERE repo_id=:repo_id and repo_status != 'Empty'
-            """).bindparams(repo_id=repo_id)
-
-        facade_db.execute_sql(set_complete)
 
         update_analysis_log(repo_id,'Commit trimming complete')
 
@@ -364,13 +365,6 @@ def rebuild_unknown_affiliation_and_web_caches_facade_task():
         metadata = {"tool_source": manifest.tool_source, "tool_version": manifest.tool_version, "data_source": manifest.data_source}
         rebuild_unknown_affiliation_and_web_caches(manifest.facade_db, metadata)
 
-@celery.task
-def force_repo_analysis_facade_task(repo_git):
-
-    logger = logging.getLogger(force_repo_analysis_facade_task.__name__)
-
-    with FacadeTaskManifest(logger) as manifest:
-        force_repo_analysis(manifest.facade_db,repo_git)
 
 @celery.task
 def git_repo_cleanup_facade_task(repo_git):
@@ -388,21 +382,16 @@ def git_repo_initialize_facade_task(repo_git):
     with FacadeTaskManifest(logger) as manifest:
         git_repo_initialize(manifest.facade_db, manifest.repo_base_directory, repo_git)
 
-@celery.task
-def check_for_repo_updates_facade_task(repo_git):
+#@celery.task
+#def check_for_repo_updates_facade_task(repo_git):
+#
+#    from augur.tasks.init.celery_app import engine
+#
+#    logger = logging.getLogger(check_for_repo_updates_facade_task.__name__)
+#
+#    with FacadeSession(logger) as session:
+#        check_for_repo_updates(session, repo_git)
 
-    logger = logging.getLogger(check_for_repo_updates_facade_task.__name__)
-
-    with FacadeTaskManifest(logger) as manifest:
-        check_for_repo_updates(manifest.facade_db, repo_git)
-
-@celery.task
-def force_repo_updates_facade_task(repo_git):
-
-    logger = logging.getLogger(force_repo_updates_facade_task.__name__)
-
-    with FacadeTaskManifest(logger) as manifest:
-        force_repo_updates(manifest.facade_db, repo_git)
 
 @celery.task
 def git_repo_updates_facade_task(repo_git):
@@ -442,7 +431,7 @@ def generate_analysis_sequence(logger,repo_git, facade_db):
     concurrentTasks = int((-1 * (15/(len(repo_ids)+1))) + 15)
     logger.info(f"Scheduling concurrent layers {concurrentTasks} tasks at a time.")
 
-    analysis_sequence.append(facade_analysis_init_facade_task.si())
+    analysis_sequence.append(facade_analysis_init_facade_task.si(repo_id))
 
     analysis_sequence.append(grab_comitters.si(repo_id))
 
@@ -487,27 +476,46 @@ def generate_contributor_sequence(logger,repo_git, facade_db):
 
 
 
-def generate_facade_chain(logger,repo_git):
+def facade_phase(repo_git):
     #raise NotImplemented
 
+    logger = logging.getLogger(git_repo_initialize_facade_task.__name__)
     logger.info("Generating facade sequence")
     with FacadeTaskManifest(logger) as manifest:
+
+        facade_db = manifest.facade_db
+        #Get the repo_id
+        repo_list = s.sql.text("""SELECT repo_id,repo_group_id,repo_path,repo_name FROM repo 
+        WHERE repo_git=:value""").bindparams(value=repo_git)
+        repos = facade_db.fetchall_data_from_sql_text(repo_list)
+
+        start_date = facade_db.get_setting('start_date')
+
+        repo_ids = [repo['repo_id'] for repo in repos]
+
+        repo_id = repo_ids.pop(0)
+
+        #Get the collectionStatus
+        query = facade_db.session.query(CollectionStatus).filter(CollectionStatus.repo_id == repo_id)
+
+        status = execute_session_query(query,'one')
         
         # Figure out what we need to do
         limited_run = manifest.limited_run
         delete_marked_repos = manifest.delete_marked_repos
         pull_repos = manifest.pull_repos
-        clone_repos = manifest.clone_repos
+        #clone_repos = manifest.clone_repos
         check_updates = manifest.check_updates
-        force_updates = manifest.force_updates
+        #force_updates = manifest.force_updates
         run_analysis = manifest.run_analysis
-        force_analysis = manifest.force_analysis
+        #force_analysis = manifest.force_analysis
+        run_facade_contributors = manifest.run_facade_contributors
         nuke_stored_affiliations = manifest.nuke_stored_affiliations
         fix_affiliations = manifest.fix_affiliations
         force_invalidate_caches = manifest.force_invalidate_caches
         rebuild_caches = manifest.rebuild_caches
-        #if abs((datetime.datetime.strptime(manifest.cfg.get_setting('aliases_processed')[:-3], 
-            # '%Y-%m-%d %I:%M:%S.%f') - datetime.datetime.now()).total_seconds()) // 3600 > int(manifest.cfg.get_setting(
+        #if abs((datetime.datetime.strptime(session.cfg.get_setting('aliases_processed')[:-3], 
+            # '%Y-%m-%d %I:%M:%S.%f') - datetime.datetime.now()).total_seconds()) // 3600 > int(session.cfg.get_setting(
             #   'update_frequency')) else 0
         force_invalidate_caches = manifest.force_invalidate_caches
         create_xlsx_summary_files = manifest.create_xlsx_summary_files
@@ -515,31 +523,29 @@ def generate_facade_chain(logger,repo_git):
 
         facade_sequence = []
 
-        if not limited_run or (limited_run and delete_marked_repos):
-            facade_sequence.append(git_repo_cleanup_facade_task.si(repo_git))#git_repo_cleanup(session,repo_git_identifiers)
+        #Currently repos are never deleted
+        #if not limited_run or (limited_run and delete_marked_repos):
+        #    facade_sequence.append(git_repo_cleanup_facade_task.si(repo_git))#git_repo_cleanup(session,repo_git_identifiers)
 
-        if not limited_run or (limited_run and clone_repos):
+        if 'Pending' in status.facade_status or 'Failed Clone' in status.facade_status:
             facade_sequence.append(git_repo_initialize_facade_task.si(repo_git))#git_repo_initialize(session,repo_git_identifiers)
 
-        if not limited_run or (limited_run and check_updates):
-            facade_sequence.append(check_for_repo_updates_facade_task.si(repo_git))#check_for_repo_updates(session,repo_git_identifiers)
-
-        if force_updates:
-            facade_sequence.append(force_repo_updates_facade_task.si(repo_git))
+        #TODO: alter this to work with current collection.
+        #if not limited_run or (limited_run and check_updates):
+        #    facade_sequence.append(check_for_repo_updates_facade_task.si(repo_git))#check_for_repo_updates(session,repo_git_identifiers)
 
         if not limited_run or (limited_run and pull_repos):
             facade_sequence.append(git_repo_updates_facade_task.si(repo_git))
 
-        if force_analysis:
-            facade_sequence.append(force_repo_analysis_facade_task.si(repo_git))
-
         #Generate commit analysis task order.
-        facade_sequence.extend(generate_analysis_sequence(logger,repo_git,manifest.facade_db))
+        if not limited_run or (limited_run and run_analysis):
+            facade_sequence.extend(generate_analysis_sequence(logger,repo_git,facade_db))
 
         #Generate contributor analysis task group.
-        facade_sequence.append(generate_contributor_sequence(logger,repo_git, manifest.facade_db))
+        if not limited_run or (limited_run and run_facade_contributors):
+            facade_sequence.append(generate_contributor_sequence(logger,repo_git,facade_db))
 
-        
+
         logger.info(f"Facade sequence: {facade_sequence}")
         return chain(*facade_sequence)
 
@@ -551,17 +557,17 @@ def generate_non_repo_domain_facade_tasks(logger):
         limited_run = manifest.limited_run
         delete_marked_repos = manifest.delete_marked_repos
         pull_repos = manifest.pull_repos
-        clone_repos = manifest.clone_repos
+        # clone_repos = manifest.clone_repos
         check_updates = manifest.check_updates
-        force_updates = manifest.force_updates
+        # force_updates = manifest.force_updates
         run_analysis = manifest.run_analysis
-        force_analysis = manifest.force_analysis
+        # force_analysis = manifest.force_analysis
         nuke_stored_affiliations = manifest.nuke_stored_affiliations
         fix_affiliations = manifest.fix_affiliations
         force_invalidate_caches = manifest.force_invalidate_caches
         rebuild_caches = manifest.rebuild_caches
-        #if abs((datetime.datetime.strptime(manifest.cfg.get_setting('aliases_processed')[:-3], 
-            # '%Y-%m-%d %I:%M:%S.%f') - datetime.datetime.now()).total_seconds()) // 3600 > int(manifest.cfg.get_setting(
+        #if abs((datetime.datetime.strptime(session.cfg.get_setting('aliases_processed')[:-3], 
+            # '%Y-%m-%d %I:%M:%S.%f') - datetime.datetime.now()).total_seconds()) // 3600 > int(session.cfg.get_setting(
             #   'update_frequency')) else 0
         force_invalidate_caches = manifest.force_invalidate_caches
         create_xlsx_summary_files = manifest.create_xlsx_summary_files

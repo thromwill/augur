@@ -103,7 +103,9 @@ def get_db_engine(**kwargs):
 def get_db_session(engine=None):
     from sqlalchemy.orm import Session
 
+    engine_created = False
     if not engine:
+        engine_created = True
         db_conn_string = get_database_string()
         engine = create_database_engine(db_conn_string, pool_size=1, max_overflow=0)
         
@@ -113,7 +115,9 @@ def get_db_session(engine=None):
         yield session
     finally:
         session.close()
-        engine.dispose()
+        if engine_created:
+            engine.dispose()
+
 
 # class EngineConnection():
 
