@@ -11,7 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 from augur.application.db.models.augur_operations import UserGroup, UserRepo
-from augur.application.db.engine import get_db_session
+from augur.application.db.session import AugurDb
+from augur.application.db.engine import get_db_engine
 
 CLI_USER_ID = 1
 
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def upgrade():
 
-    with get_db_session() as session:
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
 
         create_user_groups_table = """    
             CREATE TABLE "augur_operations"."user_groups" (
@@ -46,14 +47,14 @@ def upgrade():
             ALTER SEQUENCE user_groups_group_id_seq RESTART WITH 2;
             """.format(CLI_USER_ID)
 
-        session.execute_sql(sa.sql.text(create_user_groups_table))
+        augur_db.execute_sql(sa.sql.text(create_user_groups_table))
 
 
         user_repos = []
 
         # create user group for all the users that have repos
         user_id_query = sa.sql.text("""SELECT DISTINCT(user_id) FROM user_repos;""")
-        user_groups = session.fetchall_data_from_sql_text(user_id_query)
+        user_groups = augur_db.fetchall_data_from_sql_text(user_id_query)
         if user_groups:
 
             result = []
@@ -65,7 +66,7 @@ def upgrade():
                     continue
 
                 user_group_insert = sa.sql.text(f"""INSERT INTO "augur_operations"."user_groups" ("user_id", "name") VALUES ({user_id}, 'default') RETURNING group_id, user_id;""")
-                result.append(session.fetchall_data_from_sql_text(user_group_insert)[0])
+                result.append(augur_db.fetchall_data_from_sql_text(user_group_insert)[0])
             
             # cli user mapping by default
             user_group_id_mapping = {CLI_USER_ID: "1"}
@@ -74,7 +75,7 @@ def upgrade():
             
 
             user_repo_query = sa.sql.text("""SELECT * FROM user_repos;""")
-            user_repo_data = session.fetchall_data_from_sql_text(user_repo_query)
+            user_repo_data = augur_db.fetchall_data_from_sql_text(user_repo_query)
             for row in user_repo_data:
                 row.update({"group_id": user_group_id_mapping[row["user_id"]]})
                 del row["user_id"]
@@ -82,7 +83,7 @@ def upgrade():
 
             # remove data from table before modifiying it
             remove_data_from_user_repos_query = sa.sql.text("""DELETE FROM user_repos;""")
-            session.execute_sql(remove_data_from_user_repos_query)
+            augur_db.execute_sql(remove_data_from_user_repos_query)
 
 
         table_changes = """
@@ -93,7 +94,7 @@ def upgrade():
             ADD PRIMARY KEY (group_id, repo_id);
         """
 
-        session.execute_sql(sa.sql.text(table_changes))
+        augur_db.execute_sql(sa.sql.text(table_changes))
 
         for data in user_repos:
 
@@ -101,7 +102,7 @@ def upgrade():
             repo_id = data["repo_id"]
 
             user_repo_insert = sa.sql.text(f"""INSERT INTO "augur_operations"."user_repos" ("group_id", "repo_id") VALUES ({group_id}, {repo_id});""")
-            result = session.execute_sql(user_repo_insert)
+            result = augur_db.execute_sql(user_repo_insert)
 
     op.create_table('client_applications',
     sa.Column('id', sa.String(), nullable=False),
@@ -169,9 +170,9 @@ def downgrade():
 
     user_group_ids = {}
     group_repo_ids = {}
-    with get_db_session() as session:
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
         user_id_query = sa.sql.text("""SELECT * FROM user_groups;""")
-        user_groups = session.fetchall_data_from_sql_text(user_id_query)
+        user_groups = augur_db.fetchall_data_from_sql_text(user_id_query)
         for row in user_groups:
             try:
                 user_group_ids[row["user_id"]].append(row["group_id"])
@@ -180,7 +181,7 @@ def downgrade():
 
 
         group_id_query = sa.sql.text("""SELECT * FROM user_repos;""")
-        group_repo_id_result = session.fetchall_data_from_sql_text(group_id_query)
+        group_repo_id_result = augur_db.fetchall_data_from_sql_text(group_id_query)
         for row in group_repo_id_result:
             try:
                 group_repo_ids[row["group_id"]].append(row["repo_id"])
@@ -188,7 +189,7 @@ def downgrade():
                 group_repo_ids[row["group_id"]] = [row["repo_id"]]
 
         remove_data_from_user_repos_query = sa.sql.text("""DELETE FROM user_repos;""")
-        session.execute_sql(remove_data_from_user_repos_query)
+        augur_db.execute_sql(remove_data_from_user_repos_query)
 
 
         table_changes = """
@@ -200,7 +201,7 @@ def downgrade():
         DROP TABLE user_groups;
         """
 
-        session.execute_sql(sa.sql.text(table_changes))
+        augur_db.execute_sql(sa.sql.text(table_changes))
 
         for user_id, group_ids in user_group_ids.items():
 
@@ -224,7 +225,7 @@ def downgrade():
 
                 query_text = "".join(query_text_array)
 
-                session.execute_sql(sa.sql.text(query_text))
+                augur_db.execute_sql(sa.sql.text(query_text))
 
     op.drop_table('user_session_tokens', schema='augur_operations')
     op.drop_table('client_applications', schema='augur_operations')

@@ -9,7 +9,7 @@ from .server import LoginException
 from augur.tasks.init.redis_connection import redis_connection as redis
 from augur.application.util import *
 from augur.application.config import AugurConfig
-from ..server import app, db_session
+from ..server import app, db_session, engine
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +168,7 @@ def user_login():
                 last_name = request.form.get('last_name')
                 admin = request.form.get('admin') or False
 
-                result = User.create_user(username, password, email, first_name, last_name, admin)
+                result = User.create_user(engine, username, password, email, first_name, last_name, admin)
                 if not result[0]:
                     raise LoginException("An error occurred registering your account")
                 else:

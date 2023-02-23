@@ -304,12 +304,15 @@ class User(Base):
             return None
                 
     @staticmethod
-    def create_user(username: str, password: str, email: str, first_name:str, last_name:str, admin=False):
+    def create_user(engine, username: str, password: str, email: str, first_name:str, last_name:str, admin=False):
 
-        if username is None or password is None or email is None or first_name is None or last_name is None:
-            return False, {"status": "Missing field"} 
+        with AugurDb(logger, engine) as augur_db:
 
-        with get_db_session() as session:
+            session = augur_db.session
+            engine = augur_db.engine
+
+            if username is None or password is None or email is None or first_name is None or last_name is None:
+                return False, {"status": "Missing field"} 
 
             user = session.query(User).filter(User.login_name == username).first()
             if user is not None:
@@ -324,7 +327,7 @@ class User(Base):
                 session.add(user)
                 session.commit()
 
-                result = user.add_group("default")
+                result = user.add_group(augur_db.engine, "default")
                 if not result[0] and result[1]["status"] != "Group already exists":
                     return False, {"status": "Failed to add default group for the user"}
 
@@ -397,10 +400,11 @@ class User(Base):
         return True, {"status": "Username updated"}
 
 
-    def add_group(self, group_name):
+    def add_group(self, engine, group_name):
 
-        with get_db_session() as session:
-            result = UserGroup.insert(session, self.user_id, group_name)
+        with AugurDb(logger, engine) as augur_db:
+
+            result = UserGroup.insert(augur_db, self.user_id, group_name)
 
         return result
 
@@ -559,7 +563,7 @@ class UserGroup(Base):
     repos = relationship("UserRepo", back_populates="group")
 
     @staticmethod
-    def insert(session, user_id:int, group_name:str) -> dict:
+    def insert(augur_db, user_id:int, group_name:str) -> dict:
         """Add a group to the user.
 
         Args
@@ -582,12 +586,12 @@ class UserGroup(Base):
             "user_id": user_id
         }
 
-        user_group = session.query(UserGroup).filter(UserGroup.user_id == user_id, UserGroup.name == group_name).first()
+        user_group = augur_db.session.query(UserGroup).filter(UserGroup.user_id == user_id, UserGroup.name == group_name).first()
         if user_group:
             return False, {"status": "Group already exists"}
 
         try:
-            result = session.insert_data(user_group_data, UserGroup, ["name", "user_id"], return_columns=["group_id"])
+            result = augur_db.insert_data(user_group_data, UserGroup, ["name", "user_id"], return_columns=["group_id"])
         except IntegrityError:
             return False, {"status": "Error: User id does not exist"}
 

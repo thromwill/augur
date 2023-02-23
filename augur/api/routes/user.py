@@ -219,7 +219,7 @@ def create_user():
     last_name = request.args.get("last_name")
     admin = request.args.get("create_admin") or False
 
-    result = User.create_user(username, password, email, first_name, last_name, admin)
+    result = User.create_user(engine, username, password, email, first_name, last_name, admin)
 
     return jsonify(result[1])
 
@@ -294,7 +294,7 @@ def add_user_group():
 
     group_name = request.args.get("group_name")
 
-    result = current_user.add_group(group_name)
+    result = current_user.add_group(engine, group_name)
 
     return jsonify(result[1])
 

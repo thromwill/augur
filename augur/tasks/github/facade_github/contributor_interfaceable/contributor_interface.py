@@ -207,7 +207,7 @@ def insert_alias(augur_db, logger, contributor, email):
 # Takes the user data from the endpoint as arg
 # Updates the alias table if the login is already in the contributor's table with the new email.
 # Returns whether the login was found in the contributors table
-def resolve_if_login_existing(session, contributor):
+def resolve_if_login_existing(augur_db, logger, contributor):
     # check if login exists in contributors table
     select_cntrbs_query = s.sql.text("""
         SELECT cntrb_id from contributors
@@ -217,7 +217,7 @@ def resolve_if_login_existing(session, contributor):
     # Bind parameter
     select_cntrbs_query = select_cntrbs_query.bindparams(
         gh_login_value=contributor['cntrb_login'])
-    result = session.execute_sql(select_cntrbs_query)
+    result = augur_db.execute_sql(select_cntrbs_query)
 
     # if yes
     if len(result.fetchall()) >= 1:

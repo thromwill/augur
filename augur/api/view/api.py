@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 from augur.application.db.models import Repo
 # from augur.util.repo_load_controller import parse_org_url, parse_repo_url
 from .utils import *
-from ..server import app, db_session
+from ..server import app, db_session, engine
 
 @app.route('/cache/file/')
 @app.route('/cache/file/<path:file>')
@@ -54,7 +54,7 @@ def user_add_group():
 
     if not group:
         flash("No group name provided")
-    elif current_user.add_group(group):
+    elif current_user.add_group(engine, group):
         flash(f"Successfully added group {group}")
     else:
         flash("An error occurred adding group")
