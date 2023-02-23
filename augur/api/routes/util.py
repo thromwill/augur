@@ -217,9 +217,12 @@ def get_issues(repo_group_id, repo_id=None):
 @app.route('/{}/api-port'.format(AUGUR_API_VERSION))
 def api_port():
 
-    with s.orm.Session(engine) as session:
+    from augur.application.db.engine import get_db_engine
+    from augur.application.db.session import AugurDb
 
-        response = {'port': AugurConfig(logger, session).get_value('Server', 'port')}
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+
+        response = {'port': AugurConfig(logger, augur_db).get_value('Server', 'port')}
         return Response(response=json.dumps(response),
                         status=200,
                         mimetype="application/json")

@@ -8,12 +8,14 @@ from augur.application.db.util import execute_session_query
 def get_development_flag_from_config():
     
     from logging import getLogger
-    from augur.application.db.engine import get_db_session
+    from augur.application.db.engine import get_db_engine
+    from augur.application.db.session import AugurDb
 
-    logger = getLogger(__name__)
-    with get_db_session() as session:
+    logger = getLogger(__name__)    
 
-        config = AugurConfig(logger, session)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+
+        config = AugurConfig(logger, augur_db)
 
         section = "Augur"
         setting = "developer"
@@ -137,9 +139,10 @@ def convert_type_of_value(config_dict, logger=None):
 
 class AugurConfig():
 
-    def __init__(self, logger, session):
+    def __init__(self, logger, augur_db):
 
-        self.session = session
+        self.augur_db = augur_db
+        self.session = augur_db.session
         self.logger = logger
 
         self.accepted_types = ["str", "bool", "int", "float", "NoneType"]
@@ -275,7 +278,7 @@ class AugurConfig():
                 setting["type"] = None
 
         #print(f"\nsetting: {settings}")
-        self.session.insert_data(settings,Config, ["section_name", "setting_name"])
+        self.augur_db.insert_data(settings,Config, ["section_name", "setting_name"])
        
 
     def add_section_from_json(self, section_name: str, json_data: dict) -> None:

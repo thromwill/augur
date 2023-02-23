@@ -17,6 +17,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.config import AugurConfig
 from augur.application.db.models import Repo, ChaossMetricStatus, RepoInsight, RepoInsightsRecord
 from augur.application.db.util import execute_session_query
+from augur.tasks.github.util.github_task_session import GithubTaskManifest
 
 warnings.filterwarnings('ignore')
 
@@ -25,18 +26,22 @@ warnings.filterwarnings('ignore')
 def insight_task():
 
     logger = logging.getLogger(insight_task.__name__)
-    from augur.tasks.init.celery_app import engine
-
-    with s.orm.Session(engine) as session:
-        query = session.query(Repo)
+    with GithubTaskManifest(logger) as manifest:
+        augur_db = manifest.augur_db
+    
+        query = augur_db.session.query(Repo)
         repos = execute_session_query(query, 'all')
     
 
         for repo in repos:
-            insight_model(repo.repo_git, logger, engine, session)
+            insight_model(repo.repo_git, logger, augur_db)
 
 
-def insight_model(repo_git: str,logger,engine,session) -> None:
+def insight_model(repo_git: str,logger,augur_db) -> None:
+
+    session = augur_db.session
+    engine = augur_db.engin
+
     refresh = True
     send_insights = True
 
@@ -47,7 +52,7 @@ def insight_model(repo_git: str,logger,engine,session) -> None:
     metrics = {"issues-new": "issues", "code-changes": "commit_count", "code-changes-lines": "added",
                 "reviews": "pull_requests", "contributors-new": "new_contributors"}
 
-    config = AugurConfig(logger, session)
+    config = AugurConfig(logger, augur_db)
 
     query = session.query(Repo).filter(Repo.repo_git == repo_git)
     repo_id = execute_session_query(query, 'one').repo_id

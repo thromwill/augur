@@ -11,7 +11,8 @@ from augur.application.db.models import Config
 
 from augur.application.logs import AugurLogger
 from augur.application.config import AugurConfig
-from augur.application.db.engine import get_db_session
+from augur.application.db.engine import get_db_engine
+from augur.application.db.session import AugurDb
 from augur.application.cli import test_connection, test_db_connection 
 from augur.util.inspect_without_import import get_phase_names_without_import
 ROOT_AUGUR_DIRECTORY = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
@@ -62,9 +63,9 @@ def init_config(github_api_key, facade_repo_directory, gitlab_api_key, redis_con
     keys["github_api_key"] = github_api_key
     keys["gitlab_api_key"] = gitlab_api_key
 
-    with get_db_session() as session:
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
 
-        config = AugurConfig(logger, session)
+        config = AugurConfig(logger, augur_db)
 
         default_config = config.default_config
 
@@ -109,8 +110,8 @@ def init_config(github_api_key, facade_repo_directory, gitlab_api_key, redis_con
 @test_db_connection
 def load_config(file):
 
-    with get_db_session() as session:
-        config = AugurConfig(logger, session)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+        config = AugurConfig(logger, augur_db)
 
         print("WARNING: This will override your current config")
         response = str(input("Would you like to continue: [y/N]: ")).lower()
@@ -132,8 +133,8 @@ def load_config(file):
 @test_db_connection
 def add_section(section_name, file):
 
-    with get_db_session() as session:
-        config = AugurConfig(logger, session)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+        config = AugurConfig(logger, augur_db)
 
         if config.is_section_in_config(section_name):
 
@@ -161,8 +162,8 @@ def add_section(section_name, file):
 @test_db_connection
 def config_set(section, setting, value, data_type):
 
-    with get_db_session() as session:
-        config = AugurConfig(logger, session)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+        config = AugurConfig(logger, augur_db)
 
         if data_type not in config.accepted_types:
             print(f"Error invalid type for config. Please use one of these types: {config.accepted_types}")
@@ -185,8 +186,8 @@ def config_set(section, setting, value, data_type):
 @test_db_connection
 def config_get(section, setting):
 
-    with get_db_session() as session:
-        config = AugurConfig(logger, session)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+        config = AugurConfig(logger, augur_db)
 
         if setting:
             config_value = config.get_value(section_name=section, setting_name=setting)
@@ -215,8 +216,8 @@ def config_get(section, setting):
 @test_db_connection
 def clear_config():
 
-    with get_db_session() as session:
-        config = AugurConfig(logger, session)
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
+        config = AugurConfig(logger, augur_db)
 
         if not config.empty():
 

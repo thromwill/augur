@@ -24,6 +24,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.config import AugurConfig
 from augur.application.db.models import Repo, RepoClusterMessage, RepoTopic, TopicWord
 from augur.application.db.util import execute_session_query
+from augur.tasks.github.util.github_task_session import GithubTaskManifest
 
 
 MODEL_FILE_NAME = "kmeans_repo_messages"
@@ -34,18 +35,22 @@ stemmer = nltk.stem.snowball.SnowballStemmer("english")
 def clustering_task():
 
     logger = logging.getLogger(clustering_model.__name__)
-    from augur.tasks.init.celery_app import engine
+    with GithubTaskManifest(logger) as manifest:
 
-    with s.orm.Session(engine) as session:
-        query = session.query(Repo)
+        augur_db = manifest.augur_db
+
+        query = augur_db.session.query(Repo)
         repos = execute_session_query(query, 'all')
     
 
         for repo in repos:
-            clustering_model(repo.repo_git, logger, engine, session)
+            clustering_model(repo.repo_git, logger, augur_db)
 
 
-def clustering_model(repo_git: str,logger,engine, session) -> None:
+def clustering_model(repo_git: str,logger, augur_db) -> None:
+
+    session = augur_db.session
+    engine = augur_db.engine
 
     logger.info(f"Starting clustering analysis for {repo_git}")
 
@@ -61,7 +66,7 @@ def clustering_model(repo_git: str,logger,engine, session) -> None:
     tool_version = '0.2.0'
     data_source = 'Augur Collected Messages'
 
-    config = AugurConfig(logger, session)
+    config = AugurConfig(logger, augur_db)
 
     query = session.query(Repo).filter(Repo.repo_git == repo_git)
     repo_id = execute_session_query(query, 'one').repo_id

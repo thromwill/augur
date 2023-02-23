@@ -13,6 +13,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.config import AugurConfig
 from augur.application.db.models import Repo, PullRequestAnalysis
 from augur.application.db.util import execute_session_query
+from augur.tasks.github.util.github_task_session import GithubTaskManifest
 
 # from sklearn.metrics import (confusion_matrix, f1_score, precision_score, recall_score)
 # from sklearn.preprocessing import LabelEncoder, MinMaxScaler
@@ -24,20 +25,23 @@ ROOT_AUGUR_DIRECTORY = os.path.dirname(os.path.dirname(os.path.dirname(os.path.d
 def pull_request_analysis_task():
 
     logger = logging.getLogger(pull_request_analysis_task.__name__)
-    from augur.tasks.init.celery_app import engine
+    with GithubTaskManifest(logger) as manifest:
 
-    with s.orm.Session(engine) as session:
-        query = session.query(Repo)
+        augur_db = manifest.augur_db
+
+        query = augur_db.session.query(Repo)
         repos = execute_session_query(query, 'all')
     
 
     for repo in repos:
-        pull_request_analysis_model(repo.repo_git, logger, engine, session)
+        pull_request_analysis_model(repo.repo_git, logger, augur_db)
 
 
 
-def pull_request_analysis_model(repo_git: str,logger,engine, session) -> None:
+def pull_request_analysis_model(repo_git: str,logger, augur_db) -> None:
 
+    session = augur_db.session
+    engine = augur_db.engine
 
     tool_source = 'Pull Request Analysis Worker'
     tool_version = '0.0.0'
@@ -45,7 +49,7 @@ def pull_request_analysis_model(repo_git: str,logger,engine, session) -> None:
 
     insight_days = 200
 
-    config = AugurConfig(logger, session)
+    config = AugurConfig(logger, augur_db)
 
     query = session.query(Repo).filter(Repo.repo_git == repo_git)
     repo_id = execute_session_query(query, 'one').repo_id

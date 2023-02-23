@@ -301,9 +301,9 @@ class AugurTaskRoutine:
             #yield the value of the task_id to the calling method so that the proper collectionStatus field can be updated
             yield repo_git, task_id
 
-def get_enabled_phase_names_from_config(logger, session):
+def get_enabled_phase_names_from_config(logger, augur_db):
 
-    config = AugurConfig(logger, session)
+    config = AugurConfig(logger, augur_db)
     phase_options = config.get_section("Task_Routine")
 
     #Get list of enabled phases 
@@ -324,9 +324,10 @@ def non_repo_domain_tasks():
     logger.info("Executing non-repo domain tasks")
 
     enabled_phase_names = []
-    with Session(engine) as session:
+    with GithubTaskManifest(logger) as manifest:
+        augur_db = manifest.augur_db
 
-        enabled_phase_names = get_enabled_phase_names_from_config(logger, session)
+        enabled_phase_names = get_enabled_phase_names_from_config(logger, augur_db)
 
         #Disable augur from running these tasks more than once unless requested
         query = s.sql.text("""
@@ -336,7 +337,7 @@ def non_repo_domain_tasks():
             AND setting_name='machine_learning_phase'
         """)
 
-        session.execute_sql(query)
+        augur_db.execute_sql(query)
 
     enabled_tasks = []
 
@@ -361,7 +362,9 @@ def get_collection_status_repo_git_from_filter(session,filter_condition,limit):
     return [status.repo.repo_git for status in repo_status_list]
 
 
-def start_primary_collection(logger, session, max_repo,days):
+def start_primary_collection(logger, augur_db, max_repo,days):
+
+    session = augur_db.session
 
     #Get list of enabled phases 
     enabled_phase_names = get_enabled_phase_names_from_config(logger, session)
@@ -413,10 +416,12 @@ def start_primary_collection(logger, session, max_repo,days):
         repoStatus.core_status = CollectionState.COLLECTING.value
         session.commit()
 
-def start_secondary_collection(logger, session, max_repo,days):
+def start_secondary_collection(logger, augur_db, max_repo,days):
+
+    session = augur_db.session
 
     #Get list of enabled phases 
-    enabled_phase_names = get_enabled_phase_names_from_config(logger, session)
+    enabled_phase_names = get_enabled_phase_names_from_config(logger, augur_db)
 
     #Deal with secondary collection
     secondary_enabled_phases = []
@@ -462,10 +467,12 @@ def start_secondary_collection(logger, session, max_repo,days):
         repoStatus.secondary_status = CollectionState.COLLECTING.value
         session.commit()
 
-def start_facade_collection(logger, session,max_repo,days):
+def start_facade_collection(logger, augur_db,max_repo,days):
+
+    session = augur_db.session
 
     #Get list of enabled phases 
-    enabled_phase_names = get_enabled_phase_names_from_config(logger, session)
+    enabled_phase_names = get_enabled_phase_names_from_config(logger, augur_db)
 
     #Deal with secondary collection
     facade_enabled_phases = []
@@ -519,11 +526,11 @@ def augur_collection_monitor():
     with GithubTaskManifest(logger) as manifest:
         augur_db = manifest.augur_db
 
-        start_primary_collection(logger, augur_db.session, max_repo=50, days=30)
+        start_primary_collection(logger, augur_db, max_repo=50, days=30)
         
-        start_secondary_collection(logger, augur_db.session, max_repo=30, days=30)
+        start_secondary_collection(logger, augur_db, max_repo=30, days=30)
 
-        start_facade_collection(logger, augur_db.session, max_repo=30, days=30)
+        start_facade_collection(logger, augur_db, max_repo=30, days=30)
 
 
 

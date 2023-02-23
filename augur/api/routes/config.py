@@ -31,12 +31,15 @@ def generate_upgrade_request():
 
 @app.route(f"/{AUGUR_API_VERSION}/config/get", methods=['GET', 'POST'])
 def get_config():
+    from augur.application.db.engine import get_db_engine
+    from augur.application.db.session import AugurDb
+
     if not development and not request.is_secure:
         return generate_upgrade_request()
 
-    with s.orm.Session(engine) as session:
+    with get_db_engine() as engine, AugurDb(logger, engine) as augur_db:
         
-        config_dict = AugurConfig(logger, session).config.load_config()
+        config_dict = AugurConfig(logger, augur_db).config.load_config()
 
     return jsonify(config_dict), 200
 
