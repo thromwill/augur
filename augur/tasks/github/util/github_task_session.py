@@ -1,7 +1,7 @@
 from logging import Logger
 
 from augur.tasks.github.util.github_random_key_auth import GithubRandomKeyAuth
-from augur.application.db.session import DatabaseSession
+from augur.application.db.session import DatabaseSession, AugurDb
 
 
 class GithubTaskManifest:
@@ -9,9 +9,8 @@ class GithubTaskManifest:
     def __init__(self, logger):
 
         from augur.tasks.init.celery_app import engine
-        from augur.application.db.session import DatabaseSession
 
-        self.augur_db = DatabaseSession(logger, engine)
+        self.augur_db = AugurDb(logger, engine)
         self.key_auth = GithubRandomKeyAuth(self.augur_db.session, logger)
         self.logger = logger
         self.platform_id = 1
