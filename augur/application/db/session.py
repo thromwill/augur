@@ -5,7 +5,7 @@ import sys
 import random
 import logging
 import json
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import OperationalError
 

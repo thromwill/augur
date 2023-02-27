@@ -26,6 +26,7 @@ import sqlalchemy as s
 from augur.tasks.git.util.facade_worker.facade_worker.facade02utilitymethods import update_repo_log, trim_commit, store_working_author, trim_author
 from augur.tasks.git.util.facade_worker.facade_worker.facade03analyzecommit import analyze_commit
 from augur.tasks.github.facade_github.tasks import *
+from ..git.util.facade_worker.facade_worker.facade01config import FacadeTaskManifest
 
 from augur.tasks.util.worker_util import create_grouped_task_load
 
@@ -67,14 +68,15 @@ def facade_error_handler(request,exc,traceback):
 def facade_analysis_init_facade_task(repo_id):
 
     logger = logging.getLogger(facade_analysis_init_facade_task.__name__)
-    with FacadeSession(logger) as session:
-        session.update_status('Running analysis')
-        session.log_activity('Info',f"Beginning analysis.")
+    with FacadeTaskManifest(logger) as manifest:
+        facade_db = manifest.facade_db
+        facade_db.update_status('Running analysis')
+        facade_db.log_activity('Info',f"Beginning analysis.")
 
         update_project_status = s.sql.text("""UPDATE augur_operations.collection_status
             SET facade_status='Collecting' WHERE 
             repo_id=:repo_id""").bindparams(repo_id=repo_id)
-        session.execute_sql(update_project_status)
+        facade_db.execute_sql(update_project_status)
 
 @celery.task
 def grab_comitters(repo_id,platform="github"):
@@ -224,8 +226,8 @@ def trim_commits_post_analysis_facade_task(repo_id):
 def facade_analysis_end_facade_task():
 
     logger = logging.getLogger(facade_analysis_end_facade_task.__name__)
-    with FacadeSession(logger) as session:
-        session.log_activity('Info','Running analysis (complete)')
+    with FacadeTaskManifest(logger) as manifest:
+        manifest.facade_db.log_activity('Info','Running analysis (complete)')
 
 
 
@@ -233,7 +235,7 @@ def facade_analysis_end_facade_task():
 def facade_start_contrib_analysis_task():
 
     logger = logging.getLogger(facade_start_contrib_analysis_task.__name__)
-    with FacadeSession(logger) as session:
+    with FacadeTaskManifest(logger) as manifest:
         session.update_status('Updating Contributors')
         session.log_activity('Info', 'Updating Contributors with commits')
 
