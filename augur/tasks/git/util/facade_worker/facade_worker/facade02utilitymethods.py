@@ -151,7 +151,7 @@ def update_analysis_log(session, repos_id,status):
 	
 	session.execute_sql(log_message)
 
-	def get_repo_path_from_github_url(url):
+def get_repo_path_from_github_url(url):
 
     # remove protocol
 	index = url.find('://',0)
