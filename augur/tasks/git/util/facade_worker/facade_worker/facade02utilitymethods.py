@@ -151,4 +151,32 @@ def update_analysis_log(session, repos_id,status):
 	
 	session.execute_sql(log_message)
 
+	def get_repo_path_from_github_url(url):
+
+    # remove protocol
+	index = url.find('://',0)
+	if index > 0:
+		url = url[index+3:]
+
+	# find location of last slash
+	last_slash_index = url.rfind('/', 0)
+
+	# remove repo name
+	repo_path = url[:last_slash_index+1]
+
+	return repo_path
+
+def get_repo_name_from_github_url(url):
+
+	# find location of last slash
+    last_slash_index = url.rfind('/', 0)
+
+	# get repo_name which is after the last slash
+    repo_name = url[last_slash_index+1:]
+
+	# remove .git if present
+    if repo_name.find('.git',0) > -1:
+            repo_name = repo_name[:repo_name.find('.git',0)]
+
+    return repo_name
 
