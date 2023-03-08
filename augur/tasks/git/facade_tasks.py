@@ -26,7 +26,7 @@ import sqlalchemy as s
 
 
 from augur.tasks.git.util.facade_worker.facade_worker.facade02utilitymethods import update_repo_log, trim_commit, store_working_author, trim_author
-from augur.tasks.git.util.facade_worker.facade_worker.facade02utilitymethods import get_absolute_repo_path, get_parent_commits_set, get_existing_commits_set
+from augur.tasks.git.util.facade_worker.facade_worker.facade02utilitymethods import get_absolute_repo_path, get_parent_commits_set, get_existing_commits_set, update_analysis_log
 from augur.tasks.git.util.facade_worker.facade_worker.facade03analyzecommit import analyze_commit
 from augur.tasks.github.facade_github.tasks import *
 
@@ -102,21 +102,8 @@ def trim_commits_facade_task(repo_id):
 
     with FacadeSession(logger) as session:
 
-        def update_analysis_log(repos_id,status):
-
-        # Log a repo's analysis status
-
-            log_message = s.sql.text("""INSERT INTO analysis_log (repos_id,status)
-                VALUES (:repo_id,:status)""").bindparams(repo_id=repos_id,status=status)
-
-            try:
-                session.execute_sql(log_message)
-            except:
-                pass
-
-
         session.inc_repos_processed()
-        update_analysis_log(repo_id,"Beginning analysis.")
+        update_analysis_log(session, repo_id,"Beginning analysis.")
         # First we check to see if the previous analysis didn't complete
 
         get_status = s.sql.text("""SELECT working_commit FROM working_commits WHERE repos_id=:repo_id
@@ -141,7 +128,7 @@ def trim_commits_facade_task(repo_id):
 
         # Start the main analysis
 
-        update_analysis_log(repo_id,'Collecting data')
+        update_analysis_log(session, repo_id,'Collecting data')
         logger.info(f"Got past repo {repo_id}")
 
 @celery.task
@@ -152,15 +139,7 @@ def trim_commits_post_analysis_facade_task(repo_id):
 
     with FacadeSession(logger) as session:
         start_date = session.get_setting('start_date')
-        def update_analysis_log(repos_id,status):
 
-            # Log a repo's analysis status
-
-            log_message = s.sql.text("""INSERT INTO analysis_log (repos_id,status)
-                VALUES (:repo_id,:status)""").bindparams(repo_id=repos_id,status=status)
-
-            
-            session.execute_sql(log_message)
         
         session.logger.info(f"Generating sequence for repo {repo_id}")
 
@@ -187,21 +166,19 @@ def trim_commits_post_analysis_facade_task(repo_id):
 
         trimmed_commits = existing_commits - parent_commits
 
-        update_analysis_log(repo_id,'Data collection complete')
+        update_analysis_log(session, repo_id,'Data collection complete')
 
-        update_analysis_log(repo_id,'Beginning to trim commits')
+        update_analysis_log(session, repo_id,'Beginning to trim commits')
 
         session.log_activity('Debug',f"Commits to be trimmed from repo {repo_id}: {len(trimmed_commits)}")
-
-
 
         for commit in trimmed_commits:
             trim_commit(session,repo_id,commit)
         
 
-        update_analysis_log(repo_id,'Commit trimming complete')
+        update_analysis_log(session, repo_id,'Commit trimming complete')
 
-        update_analysis_log(repo_id,'Complete')
+        update_analysis_log(session, repo_id,'Complete')
     
 
 

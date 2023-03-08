@@ -139,3 +139,16 @@ def get_existing_commits_set(session, repo_id):
 	existing_commits = [commit['cmt_commit_hash'] for commit in session.fetchall_data_from_sql_text(find_existing)]
 
 	return set(existing_commits)
+	
+
+def update_analysis_log(session, repos_id,status):
+
+	# Log a repo's analysis status
+
+	log_message = s.sql.text("""INSERT INTO analysis_log (repos_id,status)
+		VALUES (:repo_id,:status)""").bindparams(repo_id=repos_id,status=status)
+
+	
+	session.execute_sql(log_message)
+
+
