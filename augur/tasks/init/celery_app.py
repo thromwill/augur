@@ -74,48 +74,49 @@ BACKEND_URL = f'{redis_conn_string}{redis_db_number+1}'
 celery_app = Celery('tasks', broker=BROKER_URL, backend=BACKEND_URL, include=tasks)
 
 
-def task_failed_util(self,exc,traceback,task_id,args, kwargs, einfo):
+class AugurTask(celery.Task):
+    def task_failed_util(self,exc,traceback,task_id,args, kwargs, einfo):
 
-    from augur.tasks.init.celery_app import engine
+        from augur.tasks.init.celery_app import engine
 
-    logger = logging.getLogger(task_failed_util.__name__)
+        logger = logging.getLogger(task_failed_util.__name__)
 
-    # log traceback to error file
-    logger.error(f"Task {task_id} raised exception: {exc}\n{traceback}")
-    
-    with DatabaseSession(logger,engine) as session:
-        core_id_match = CollectionStatus.core_task_id == task_id
-        secondary_id_match = CollectionStatus.secondary_task_id == task_id
-        facade_id_match = CollectionStatus.facade_task_id == task_id
+        # log traceback to error file
+        logger.error(f"Task {task_id} raised exception: {exc}\n{traceback}")
 
-        query = session.query(CollectionStatus).filter(or_(core_id_match,secondary_id_match,facade_id_match))
+        with DatabaseSession(logger,engine) as session:
+            core_id_match = CollectionStatus.core_task_id == task_id
+            secondary_id_match = CollectionStatus.secondary_task_id == task_id
+            facade_id_match = CollectionStatus.facade_task_id == task_id
 
-        try:
-            collectionRecord = execute_session_query(query,'one')
-        except:
-            #Exit if we can't find the record.
-            return
-        
-        if collectionRecord.core_task_id == task_id:
-            # set status to Error in db
-            collectionRecord.core_status = CollectionState.ERROR.value
-            collectionRecord.core_task_id = None
-        
+            query = session.query(CollectionStatus).filter(or_(core_id_match,secondary_id_match,facade_id_match))
 
-        if collectionRecord.secondary_task_id == task_id:
-            # set status to Error in db
-            collectionRecord.secondary_status = CollectionState.ERROR.value
-            collectionRecord.secondary_task_id = None
-            
-        
-        if collectionRecord.facade_task_id == task_id:
-            #Failed clone is differant than an error in collection.
-            if collectionRecord.facade_status != CollectionState.FAILED_CLONE.value or collectionRecord.facade_status != CollectionState.UPDATE.value:
-                collectionRecord.facade_status = CollectionState.ERROR.value
+            try:
+                collectionRecord = execute_session_query(query,'one')
+            except:
+                #Exit if we can't find the record.
+                return
 
-            collectionRecord.facade_task_id = None
-        
-        session.commit()
+            if collectionRecord.core_task_id == task_id:
+                # set status to Error in db
+                collectionRecord.core_status = CollectionState.ERROR.value
+                collectionRecord.core_task_id = None
+
+
+            if collectionRecord.secondary_task_id == task_id:
+                # set status to Error in db
+                collectionRecord.secondary_status = CollectionState.ERROR.value
+                collectionRecord.secondary_task_id = None
+
+
+            if collectionRecord.facade_task_id == task_id:
+                #Failed clone is differant than an error in collection.
+                if collectionRecord.facade_status != CollectionState.FAILED_CLONE.value or collectionRecord.facade_status != CollectionState.UPDATE.value:
+                    collectionRecord.facade_status = CollectionState.ERROR.value
+
+                collectionRecord.facade_task_id = None
+
+            session.commit()
 
 
 # define the queues that tasks will be put in (by default tasks are put in celery queue)
@@ -126,7 +127,7 @@ celery_app.conf.task_routes = {
     'augur.tasks.github.pull_requests.files_model.tasks.*': {'queue': 'secondary'},
     'augur.tasks.github.pull_requests.tasks.collect_pull_request_reviews': {'queue': 'secondary'},
     'augur.tasks.git.dependency_tasks.tasks.*': {'queue': 'secondary'},
-    '*' : {'on_failure': task_failed_util}
+    '*' : {'base': AugurTask}
 }
 
 #Setting to be able to see more detailed states of running tasks
