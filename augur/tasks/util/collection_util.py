@@ -51,62 +51,6 @@ def get_collection_status_repo_git_from_filter(session,filter_condition,limit):
     return [status.repo.repo_git for status in repo_status_list]
 
 
-
-@celery.task
-def task_failed_util(request,exc,traceback):
-
-    from augur.tasks.init.celery_app import engine
-
-    logger = logging.getLogger(task_failed_util.__name__)
-
-    # log traceback to error file
-    logger.error(f"Task {request.id} raised exception: {exc}\n{traceback}")
-    
-    with DatabaseSession(logger,engine) as session:
-        core_id_match = CollectionStatus.core_task_id == request.id
-        secondary_id_match = CollectionStatus.secondary_task_id == request.id
-        facade_id_match = CollectionStatus.facade_task_id == request.id
-
-        query = session.query(CollectionStatus).filter(or_(core_id_match,secondary_id_match,facade_id_match))
-
-        print(f"chain: {request.chain}")
-        #Make sure any further execution of tasks dependent on this one stops.
-        try:
-            #Replace the tasks queued ahead of this one in a chain with None.
-            request.chain = None
-        except AttributeError:
-            pass #Task is not part of a chain. Normal so don't log.
-        except Exception as e:
-            logger.error(f"Could not mutate request chain! \n Error: {e}")
-        
-        try:
-            collectionRecord = execute_session_query(query,'one')
-        except:
-            #Exit if we can't find the record.
-            return
-        
-        if collectionRecord.core_task_id == request.id:
-            # set status to Error in db
-            collectionRecord.core_status = CollectionStatus.ERROR.value
-            collectionRecord.core_task_id = None
-        
-
-        if collectionRecord.secondary_task_id == request.id:
-            # set status to Error in db
-            collectionRecord.secondary_status = CollectionStatus.ERROR.value
-            collectionRecord.secondary_task_id = None
-            
-        
-        if collectionRecord.facade_task_id == request.id:
-            #Failed clone is differant than an error in collection.
-            if collectionRecord.facade_status != CollectionStatus.FAILED_CLONE.value or collectionRecord.facade_status != CollectionStatus.UPDATE.value:
-                collectionRecord.facade_status = CollectionStatus.ERROR.value
-
-            collectionRecord.facade_task_id = None
-        
-        session.commit()
-    
-    
 @celery.task
 def core_task_success_util(repo_git):
 
@@ -277,7 +221,7 @@ class AugurTaskRoutine:
             #augur_collection_sequence.append(core_task_success_util.si(repo_git))
             #Link all phases in a chain and send to celery
             augur_collection_chain = chain(*augur_collection_sequence)
-            task_id = augur_collection_chain.apply_async(link_error=task_failed_util.s()).task_id
+            task_id = augur_collection_chain.apply_async().task_id
 
             self.logger.info(f"Setting repo_id {repo_id} to collecting for repo: {repo_git}")
 
