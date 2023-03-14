@@ -7,6 +7,7 @@ from celery import Celery
 from celery import current_app 
 from celery.signals import after_setup_logger
 from sqlalchemy import create_engine, event
+import celery
 
 
 from augur.application.logs import TaskLogConfig
