@@ -4,6 +4,7 @@ from augur.application.db.session import DatabaseSession
 from augur.tasks.git.dependency_libyear_tasks.core import *
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.util import execute_session_query
+from augur.tasks.init.celery_app import AugurTask
 
 @celery.task(base=AugurTask)
 def process_libyear_dependency_metrics(repo_git):
