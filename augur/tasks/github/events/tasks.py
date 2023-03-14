@@ -11,10 +11,11 @@ from augur.tasks.github.util.util import get_owner_repo
 from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
 from augur.application.db.util import execute_session_query
+from augur.tasks.init.celery_app import AugurTask
 
 platform_id = 1
 
-@celery.task()
+@celery.task(base=AugurTask)()
 def collect_events(repo_git: str):
 
     logger = logging.getLogger(collect_events.__name__)

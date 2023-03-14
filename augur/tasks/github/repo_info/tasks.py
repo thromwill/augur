@@ -4,8 +4,9 @@ from augur.tasks.github.repo_info.core import *
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.util import execute_session_query
 import traceback
+from augur.tasks.init.celery_app import AugurTask
 
-@celery.task()
+@celery.task(base=AugurTask)()
 def collect_repo_info(repo_git: str):
 
     logger = logging.getLogger(collect_repo_info.__name__)

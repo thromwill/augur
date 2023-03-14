@@ -16,10 +16,11 @@ from augur.tasks.util.worker_util import remove_duplicate_dicts
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
 from augur.application.config import get_development_flag
 from augur.application.db.util import execute_session_query
+from augur.tasks.init.celery_app import AugurTask
 
 development = get_development_flag()
 
-@celery.task()
+@celery.task(base=AugurTask)()
 def collect_issues(repo_git : str) -> None:
 
 

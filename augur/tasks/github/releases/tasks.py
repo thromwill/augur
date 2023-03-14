@@ -3,8 +3,9 @@ from augur.tasks.github.releases.core import *
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.util import execute_session_query
 import traceback
+from augur.tasks.init.celery_app import AugurTask
 
-@celery.task
+@celery.task(base=AugurTask)
 def collect_releases(repo_git):
 
     logger = logging.getLogger(collect_releases.__name__)

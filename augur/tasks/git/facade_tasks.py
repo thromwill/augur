@@ -33,6 +33,7 @@ from augur.tasks.github.facade_github.tasks import *
 from augur.tasks.util.worker_util import create_grouped_task_load
 
 from augur.tasks.init.celery_app import celery_app as celery
+from augur.tasks.init.celery_app import AugurTask
 
 
 from augur.application.db import data_parse
@@ -69,7 +70,7 @@ def facade_error_handler(request,exc,traceback):
 
 
 #Predefine facade collection with tasks
-@celery.task
+@celery.task(base=AugurTask)
 def facade_analysis_init_facade_task(repo_id):
 
     logger = logging.getLogger(facade_analysis_init_facade_task.__name__)
@@ -82,7 +83,7 @@ def facade_analysis_init_facade_task(repo_id):
             repo_id=:repo_id""").bindparams(repo_id=repo_id)
         session.execute_sql(update_project_status)
 
-@celery.task
+@celery.task(base=AugurTask)
 def grab_comitters(repo_id,platform="github"):
 
     from augur.tasks.init.celery_app import engine
@@ -95,7 +96,7 @@ def grab_comitters(repo_id,platform="github"):
         logger.error(f"Could not grab committers from github endpoint!\n Reason: {e} \n Traceback: {''.join(traceback.format_exception(None, e, e.__traceback__))}")
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def trim_commits_facade_task(repo_id):
 
     logger = logging.getLogger(trim_commits_facade_task.__name__)
@@ -144,7 +145,7 @@ def trim_commits_facade_task(repo_id):
         update_analysis_log(repo_id,'Collecting data')
         logger.info(f"Got past repo {repo_id}")
 
-@celery.task
+@celery.task(base=AugurTask)
 def trim_commits_post_analysis_facade_task(repo_id):
 
     logger = logging.getLogger(trim_commits_post_analysis_facade_task.__name__)
@@ -205,7 +206,7 @@ def trim_commits_post_analysis_facade_task(repo_id):
     
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def facade_analysis_end_facade_task():
 
     logger = logging.getLogger(facade_analysis_end_facade_task.__name__)
@@ -214,7 +215,7 @@ def facade_analysis_end_facade_task():
 
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def facade_start_contrib_analysis_task():
 
     logger = logging.getLogger(facade_start_contrib_analysis_task.__name__)
@@ -224,7 +225,7 @@ def facade_start_contrib_analysis_task():
 
 
 #enable celery multithreading
-@celery.task
+@celery.task(base=AugurTask)
 def analyze_commits_in_parallel(repo_id, multithreaded: bool)-> None:
     """Take a large list of commit data to analyze and store in the database. Meant to be run in parallel with other instances of this task.
     """
@@ -291,7 +292,7 @@ def analyze_commits_in_parallel(repo_id, multithreaded: bool)-> None:
         logger.info("Analysis complete")
     return
 
-@celery.task
+@celery.task(base=AugurTask)
 def nuke_affiliations_facade_task():
 
     logger = logging.getLogger(nuke_affiliations_facade_task.__name__)
@@ -299,14 +300,14 @@ def nuke_affiliations_facade_task():
     with FacadeSession(logger) as session:
         nuke_affiliations(session)
 
-@celery.task
+@celery.task(base=AugurTask)
 def fill_empty_affiliations_facade_task():
 
     logger = logging.getLogger(fill_empty_affiliations_facade_task.__name__)
     with FacadeSession(logger) as session:
         fill_empty_affiliations(session)
 
-@celery.task
+@celery.task(base=AugurTask)
 def invalidate_caches_facade_task():
 
     logger = logging.getLogger(invalidate_caches_facade_task.__name__)
@@ -314,7 +315,7 @@ def invalidate_caches_facade_task():
     with FacadeSession(logger) as session:
         invalidate_caches(session)
 
-@celery.task
+@celery.task(base=AugurTask)
 def rebuild_unknown_affiliation_and_web_caches_facade_task():
 
     logger = logging.getLogger(rebuild_unknown_affiliation_and_web_caches_facade_task.__name__)
@@ -323,7 +324,7 @@ def rebuild_unknown_affiliation_and_web_caches_facade_task():
         rebuild_unknown_affiliation_and_web_caches(session)
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def git_repo_cleanup_facade_task(repo_git):
 
     logger = logging.getLogger(git_repo_cleanup_facade_task.__name__)
@@ -331,7 +332,7 @@ def git_repo_cleanup_facade_task(repo_git):
     with FacadeSession(logger) as session:
         git_repo_cleanup(session, repo_git)
 
-@celery.task
+@celery.task(base=AugurTask)
 def git_repo_initialize_facade_task(repo_git):
 
     logger = logging.getLogger(git_repo_initialize_facade_task.__name__)
@@ -339,7 +340,7 @@ def git_repo_initialize_facade_task(repo_git):
     with FacadeSession(logger) as session:
         git_repo_initialize(session, repo_git)
 
-#@celery.task
+#@celery.task(base=AugurTask)
 #def check_for_repo_updates_facade_task(repo_git):
 #
 #    from augur.tasks.init.celery_app import engine
@@ -350,7 +351,7 @@ def git_repo_initialize_facade_task(repo_git):
 #        check_for_repo_updates(session, repo_git)
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def git_repo_updates_facade_task(repo_git):
 
     logger = logging.getLogger(git_repo_updates_facade_task.__name__)

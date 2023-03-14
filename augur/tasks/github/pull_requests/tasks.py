@@ -13,12 +13,12 @@ from augur.tasks.github.util.util import add_key_value_pair_to_dicts, get_owner_
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, PullRequestMessageRef, Contributor, Repo
 from augur.application.db.util import execute_session_query
 from ..messages.tasks import process_github_comment_contributors
-
+from augur.tasks.init.celery_app import AugurTask
 
 platform_id = 1
 
 
-@celery.task()
+@celery.task(base=AugurTask)()
 def collect_pull_requests(repo_git: str) -> None:
 
     logger = logging.getLogger(collect_pull_requests.__name__)
@@ -186,7 +186,7 @@ def process_pull_request_review_contributor(pr_review: dict, tool_source: str, t
     return pr_review_cntrb
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def collect_pull_request_review_comments(repo_git: str) -> None:
 
     owner, repo = get_owner_repo(repo_git)
@@ -303,7 +303,7 @@ def collect_pull_request_review_comments(repo_git: str) -> None:
 
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def collect_pull_request_reviews(repo_git: str) -> None:
 
     logger = logging.getLogger(collect_pull_request_reviews.__name__)

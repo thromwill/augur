@@ -9,9 +9,9 @@ from augur.tasks.github.util.github_task_session import GithubTaskManifest
 from augur.tasks.util.worker_util import wait_child_tasks
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
 from augur.application.db.util import execute_session_query
+from augur.tasks.init.celery_app import AugurTask
 
-
-@celery.task
+@celery.task(base=AugurTask)
 def process_contributors():
 
     logger = logging.getLogger(process_contributors.__name__)

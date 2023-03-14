@@ -13,12 +13,12 @@ from augur.tasks.github.util.util import get_owner_repo
 from augur.application.db.models import PullRequest, Message, PullRequestReview, PullRequestLabel, PullRequestReviewer, PullRequestEvent, PullRequestMeta, PullRequestAssignee, PullRequestReviewMessageRef, Issue, IssueEvent, IssueLabel, IssueAssignee, PullRequestMessageRef, IssueMessageRef, Contributor, Repo
 from augur.application.db.util import execute_session_query
 
-
+from augur.tasks.init.celery_app import AugurTask
 
 platform_id = 1
 
 
-@celery.task()
+@celery.task(base=AugurTask)()
 def collect_github_messages(repo_git: str) -> None:
 
     logger = logging.getLogger(collect_github_messages.__name__)

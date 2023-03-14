@@ -4,9 +4,10 @@ from augur.application.db.session import DatabaseSession
 from augur.tasks.git.dependency_tasks.core import *
 from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.util import execute_session_query
+from augur.tasks.init.celery_app import AugurTask
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def process_dependency_metrics(repo_git):
     #raise NotImplementedError
 
@@ -23,7 +24,7 @@ def process_dependency_metrics(repo_git):
         deps_model(session, repo.repo_id,repo_git,repo.repo_group_id)
 
 
-@celery.task
+@celery.task(base=AugurTask)
 def process_ossf_scorecard_metrics(repo_git):
     from augur.tasks.init.celery_app import engine
     

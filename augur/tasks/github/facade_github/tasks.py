@@ -15,6 +15,7 @@ from celery.result import allow_join_result
 from augur.application.db.util import execute_session_query
 from augur.tasks.git.util.facade_worker.facade_worker.facade00mainprogram import *
 from sqlalchemy.orm.exc import NoResultFound
+from augur.tasks.init.celery_app import AugurTask
 
 
 def process_commit_metadata(session,contributorQueue,repo_id):
@@ -202,7 +203,7 @@ def link_commits_to_contributor(session,contributorQueue):
 
 
 # Update the contributors table from the data facade has gathered.
-@celery.task
+@celery.task(base=AugurTask)
 def insert_facade_contributors(repo_id):
 
     from augur.tasks.init.celery_app import engine
