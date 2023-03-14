@@ -18,7 +18,7 @@ from augur.tasks.init.celery_app import AugurTask
 platform_id = 1
 
 
-@celery.task(base=AugurTask)()
+@celery.task(base=AugurTask)
 def collect_github_messages(repo_git: str) -> None:
 
     logger = logging.getLogger(collect_github_messages.__name__)

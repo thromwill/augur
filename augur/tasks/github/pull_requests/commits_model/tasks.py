@@ -8,7 +8,7 @@ from augur.tasks.github.util.github_task_session import GithubTaskManifest
 from augur.tasks.init.celery_app import AugurTask
 
 
-@celery.task(base=AugurTask)()
+@celery.task(base=AugurTask)
 def process_pull_request_commits(repo_git: str) -> None:
 
     logger = logging.getLogger(process_pull_request_commits.__name__)

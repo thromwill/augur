@@ -7,7 +7,7 @@ from augur.tasks.init.celery_app import celery_app as celery
 from augur.application.db.util import execute_session_query
 from augur.tasks.init.celery_app import AugurTask
 
-@celery.task(base=AugurTask)()
+@celery.task(base=AugurTask)
 def process_pull_request_files(repo_git: str) -> None:
 
     logger = logging.getLogger(process_pull_request_files.__name__)

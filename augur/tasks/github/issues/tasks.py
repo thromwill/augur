@@ -20,7 +20,7 @@ from augur.tasks.init.celery_app import AugurTask
 
 development = get_development_flag()
 
-@celery.task(base=AugurTask)()
+@celery.task(base=AugurTask)
 def collect_issues(repo_git : str) -> None:
 
 
