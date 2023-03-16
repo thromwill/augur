@@ -145,9 +145,6 @@ class GithubApiKeyHandler():
     def get_remaining_core_requests(self) -> int:
         """Attempts to retrieve the amount of REST api requests left over all api keys
 
-        Args:
-            client (httpx.Client): makes the http requests
-
         Returns:
             int: The amount of remaining requests for "core" github api rate limit
         """ 
@@ -171,11 +168,8 @@ class GithubApiKeyHandler():
     def get_remaining_graphql_requests(self) -> int:
         """Attempts to retrieve the amount of REST api requests left over all api keys
 
-        Args:
-            client (httpx.Client): makes the http requests
-
         Returns:
-            int: The amount of remaining requests for "core" github api rate limit
+            int: The amount of remaining requests for "graphql" github api rate limit
         """ 
 
         totalRemaining = 0
