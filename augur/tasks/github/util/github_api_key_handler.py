@@ -17,6 +17,7 @@ class GithubApiKeyHandler():
         redis_key_list (RedisList): Acts like a python list, and interacts directly with the redis cache
         config_key (str): The api key that is stored in the users config table
         key: (List[str]): List of keys retrieve from database or cache
+        rate_limit_check_endpoint (str): The url to use to check rate limit values for each key.
     """
 
     def __init__(self, session: DatabaseSession):
@@ -32,6 +33,9 @@ class GithubApiKeyHandler():
         self.config_key = self.get_config_key()
 
         self.keys = self.get_api_keys()
+
+        # this endpoint allows us to check the rate limit, but it does not use one of our 5000 requests
+        self.rate_limit_check_endpoint = "https://api.github.com/rate_limit"
 
         # self.logger.debug(f"Retrieved {len(self.keys)} github api keys for use")
 
@@ -125,12 +129,10 @@ class GithubApiKeyHandler():
             True if key is bad. False if the key is good
         """
 
-        # this endpoint allows us to check the rate limit, but it does not use one of our 5000 requests
-        url = "https://api.github.com/rate_limit"
 
         headers = {'Authorization': f'token {oauth_key}'}
 
-        data = client.request(method="GET", url=url, headers=headers, timeout=180).json()
+        data = client.request(method="GET", url=self.rate_limit_check_endpoint, headers=headers, timeout=180).json()
 
         try:
             if data["message"] == "Bad credentials":
@@ -139,3 +141,54 @@ class GithubApiKeyHandler():
             pass
 
         return False
+    
+    def get_remaining_core_requests(self) -> int:
+        """Attempts to retrieve the amount of REST api requests left over all api keys
+
+        Args:
+            client (httpx.Client): makes the http requests
+
+        Returns:
+            int: The amount of remaining requests for "core" github api rate limit
+        """ 
+
+        totalRemaining = 0
+
+        with httpx.Client() as client:
+            for key in self.keys:
+                header = {'Authorization': f'token {key}'}
+
+                data = client.request(method="GET", url=self.rate_limit_check_endpoint, headers=headers, timeout=180).json()
+
+                try:
+                    totalRemaining += data['resources']['core']['remaining']
+                except KeyError:
+                    pass
+
+        return totalRemaining
+
+
+    def get_remaining_graphql_requests(self) -> int:
+        """Attempts to retrieve the amount of REST api requests left over all api keys
+
+        Args:
+            client (httpx.Client): makes the http requests
+
+        Returns:
+            int: The amount of remaining requests for "core" github api rate limit
+        """ 
+
+        totalRemaining = 0
+
+        with httpx.Client() as client:
+            for key in self.keys:
+                header = {'Authorization': f'token {key}'}
+
+                data = client.request(method="GET", url=self.rate_limit_check_endpoint, headers=headers, timeout=180).json()
+
+                try:
+                    totalRemaining += data['resources']['graphql']['remaining']
+                except KeyError:
+                    pass
+            
+        return totalRemaining

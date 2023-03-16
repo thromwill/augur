@@ -21,6 +21,7 @@ from augur.tasks.github.releases.tasks import collect_releases
 from augur.tasks.github.repo_info.tasks import collect_repo_info
 from augur.tasks.github.pull_requests.files_model.tasks import process_pull_request_files
 from augur.tasks.github.pull_requests.commits_model.tasks import process_pull_request_commits
+from augur.tasks.github.util.github_api_key_handler import GithubApiKeyHandler
 from augur.tasks.git.dependency_tasks.tasks import process_ossf_scorecard_metrics
 
 from augur.tasks.git.facade_tasks import *
@@ -332,11 +333,16 @@ def augur_collection_monitor():
     with DatabaseSession(logger, engine) as session:
         #Get list of enabled phases 
         enabled_phase_names = get_enabled_phase_names_from_config(session.logger, session)
+    
+        rate_limit_poll = GithubApiKeyHandler(session)
 
+        have_remaining_core_requests = rate_limit_poll.get_remaining_core_requests() != 0
+        have_remaining_graphql_requests = rate_limit_poll.get_remaining_graphql_requests() != 0
 
-        start_primary_collection(session, max_repo=50, days=30)
-        
-        start_secondary_collection(session, max_repo=30, days=30)
+        if have_remaining_core_requests and have_remaining_graphql_requests:
+            start_primary_collection(session, max_repo=50, days=30)
+
+            start_secondary_collection(session, max_repo=30, days=30)
 
         if facade_phase.__name__ in enabled_phase_names:
             #Schedule facade collection before clone/updates as that is a higher priority
