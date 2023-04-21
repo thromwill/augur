@@ -1,5 +1,5 @@
 # coding: utf-8
-from sqlalchemy import BigInteger, SmallInteger, Column, Index, Integer, String, Table, text, UniqueConstraint, Boolean, ForeignKey, update, CheckConstraint
+from sqlalchemy import BigInteger, SmallInteger, Column, Index, Integer, String, Enum, Table, text, UniqueConstraint, Boolean, ForeignKey, update, CheckConstraint 
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy.exc import IntegrityError
@@ -7,6 +7,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import text as sql_text
 from werkzeug.security import generate_password_hash, check_password_hash
 from typing import List, Any, Dict
+
+from enum import Enum as PyEnum
 
 import logging 
 import secrets
@@ -991,7 +993,28 @@ class RefreshToken(Base):
         session.commit()
 
         return refresh_token
+    
 
+class CoreStatus(PyEnum):
+    SUCCESS = "Success"
+    PENDING = "Pending"
+    ERROR = "Error"
+    COLLECTING = "Collecting"
+
+class SecondaryStatus(PyEnum):
+    SUCCESS = "Success"
+    PENDING = "Pending"
+    ERROR = "Error"
+    COLLECTING = "Collecting"
+
+class FacadeStatus(PyEnum):
+    SUCCESS = "Success"
+    PENDING = "Pending"
+    ERROR = "Error"
+    COLLECTING = "Collecting"
+    INITIALIZING = "Initializing"
+    UPDATE = "Update"
+    FAILED_CLONE = "Failed Clone"
 
 class CollectionStatus(Base):
     __tablename__ = "collection_status"
@@ -1042,14 +1065,14 @@ class CollectionStatus(Base):
 
     repo_id = Column(ForeignKey("augur_data.repo.repo_id", name="collection_status_repo_id_fk"), primary_key=True)
     core_data_last_collected = Column(TIMESTAMP)
-    core_status = Column(String, nullable=False, server_default=text("'Pending'"))
+    core_status = Column(Enum(CoreStatus), nullable=False, server_default=text(f"'{CoreStatus.PENDING.value}'"))
     core_task_id = Column(String)
-    secondary_status = Column(String, nullable=False, server_default=text("'Pending'"))
+    secondary_status = Column(Enum(SecondaryStatus), nullable=False, server_default=text(f"'{SecondaryStatus.PENDING.value}'"))
     secondary_data_last_collected = Column(TIMESTAMP)
     secondary_task_id = Column(String)
     event_last_collected = Column(TIMESTAMP)
 
-    facade_status = Column(String,nullable=False, server_default=text("'Pending'"))
+    facade_status = Column(Enum(FacadeStatus), nullable=False, server_default=text(f"'{FacadeStatus.PENDING.value}'"))
     facade_data_last_collected = Column(TIMESTAMP)
     facade_task_id = Column(String)
 
