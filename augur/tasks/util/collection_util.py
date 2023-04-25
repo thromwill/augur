@@ -49,9 +49,9 @@ def get_enabled_phase_names_from_config(logger, session):
 def get_collection_status_repo_git_from_filter(session,filter_condition,limit,order=None):
 
     if order is not None:
-        repo_status_list = session.query(CollectionStatus).join(UserGroup).order_by(order).filter(filter_condition).limit(limit).all()
+        repo_status_list = session.query(CollectionStatus).join(UserRepo).order_by(order).filter(filter_condition).limit(limit).all()
     else:
-        repo_status_list = session.query(CollectionStatus).join(UserGroup).filter(filter_condition).limit(limit).all()
+        repo_status_list = session.query(CollectionStatus).join(UserRepo).filter(filter_condition).limit(limit).all()
 
     return [status.repo.repo_git for status in repo_status_list]
 
