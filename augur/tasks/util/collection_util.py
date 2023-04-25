@@ -44,16 +44,30 @@ def get_enabled_phase_names_from_config(logger, session):
 
     return enabled_phase_names
 
+def get_status_of_repos(session,filter_condition,limit,order=None,table_join=None):
+    
+    status_query = session.query(CollectionStatus)
+
+    if table_join is not None:
+        status_query = status_query.join(table_join)
+    
+    if order is not None:
+        status_query = status_query.order_by(order)
+    
+    return status_query.filter(filter_condition).limit(limit).all()
+
+
 #Query db for CollectionStatus records that fit the desired condition.
 #Used to get CollectionStatus for differant collection hooks
 def get_collection_status_repo_git_from_filter(session,filter_condition,limit,order=None):
 
-    if order is not None:
-        repo_status_list = session.query(CollectionStatus).join(UserRepo).order_by(order).filter(filter_condition).limit(limit).all()
-    else:
-        repo_status_list = session.query(CollectionStatus).join(UserRepo).filter(filter_condition).limit(limit).all()
-
+    repo_status_list = get_status_of_repos(session, filter_condition, limit,order=order)
     return [status.repo.repo_git for status in repo_status_list]
+
+
+def get_collection_status_repo_git_and_user_group_id(session,filter_condition,limit,order=None):
+
+    repo_status_list = get_status_of_repos(session, filter_condition, limit,order=None,join=UserRepo)
 
 
 
