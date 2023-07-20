@@ -142,9 +142,10 @@ def get_repo_by_name(rg_name, repo_name):
 @app.route('/{}/rg-name/<rg_name>'.format(AUGUR_API_VERSION))
 def get_group_by_name(rg_name):
     groupSQL = s.sql.text("""
-        SELECT repo_group_id, rg_name
-        FROM repo_groups
+        SELECT repo_groups.repo_group_id, rg_name, repo_name, repo_id 
+        FROM repo_groups, repo
         WHERE lower(rg_name) = lower(:rg_name)
+        AND repo_groups.repo_group_id = repo.repo_group_id
     """)
     results = pd.read_sql(groupSQL, engine, params={'rg_name': rg_name})
     data = results.to_json(orient="records", date_format='iso', date_unit='ms')
