@@ -4752,7 +4752,7 @@ paths:
   /contributor_reports/returning_contributors_stacked_bar/:
     get:
       description: Get returning contributors stacked bar chart.
-      operationId: New Contributor Counts Stacked Bar Chart (shows actions)
+      operationId: Returning Contributor Counts Stacked Bar Chart (shows actions)
       parameters:
         - in: query
           name: repo_id
