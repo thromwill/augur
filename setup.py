@@ -80,7 +80,7 @@ setup(
         "tornado==6.1", # added because it sometimes errors when tornado is not 6.1 even though nothing we install depends on it
         "pylint==2.15.5",
         "dnspython==2.2.1",
-        "Werkzeug>=2.3.3",
+        "Werkzeug>=2.3.6",
         "pylint==2.15.5",
         "cmake>=3.26.4"
     ],
