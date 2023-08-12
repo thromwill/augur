@@ -22,12 +22,19 @@ setup(
     description="Augur worker that collects the repos people have contirbuted to",
     packages=find_packages(),
     install_requires=[
-        'Flask==2.3.2',
-        'Flask-Cors==3.0.10',
-        'Flask-Login==0.6.2',
-        'Flask-WTF==1.0.0',
-        'requests==2.28.2',
-        'psycopg2-binary==2.9.6'
+        'Flask',
+        'Flask-Cors',
+        'Flask-Login',
+        'Flask-WTF',
+        'requests',
+        'psycopg2-binary'
+
+        #  'Flask==2.3.2',
+        # 'Flask-Cors==3.0.10',
+        # 'Flask-Login==0.6.2',
+        # 'Flask-WTF==1.0.0',
+        # 'requests==2.28.2',
+        # 'psycopg2-binary==2.9.6'       
     ],
     entry_points={
         'console_scripts': [
