@@ -1195,12 +1195,10 @@ class Commit(Base):
         "Contributor",
         primaryjoin="Commit.cmt_author_platform_username == Contributor.cntrb_login",
     )
-    
-    # Redundant?
-    #contributor1 = relationship(
-    #    "Contributor",
-    #    primaryjoin="Commit.cmt_author_platform_username == Contributor.cntrb_login",
-    #)
+    contributor1 = relationship(
+        "Contributor",
+        primaryjoin="Commit.cmt_author_platform_username == Contributor.cntrb_login",
+    )
     repo = relationship("Repo")
 
 
