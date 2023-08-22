@@ -1,4 +1,4 @@
-# Hello, World
+Hello, World
 
 # Augur NEW Release v0.51.1
 
